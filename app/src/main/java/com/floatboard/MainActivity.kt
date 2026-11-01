@@ -1,6 +1,8 @@
 package com.floatboard
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -56,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -119,6 +122,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashLog.install(applicationContext)
         enableEdgeToEdge()
         SoundStore.init(applicationContext)
         AppSettings.init(applicationContext)
@@ -557,9 +561,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.0.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.0.1"
         } catch (e: Exception) {
-            "3.0.0"
+            "3.0.1"
         }
 
         Column(
@@ -630,6 +634,28 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface).padding(16.dp)) {
                 Text("FloatBoard", color = Pal.TextHi, fontSize = 15.sp)
                 Text("Version $version", color = Pal.TextLo, fontSize = 12.sp)
+            }
+
+            var crash by remember { mutableStateOf(CrashLog.read()) }
+            crash?.let { report ->
+                SectionLabel("Last crash")
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        report, color = Pal.TextLo, fontSize = 10.sp, maxLines = 14,
+                        overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            val cm = getSystemService(ClipboardManager::class.java)
+                            cm.setPrimaryClip(ClipData.newPlainText("FloatBoard crash", report))
+                            Toast.makeText(this@MainActivity, "Copied", Toast.LENGTH_SHORT).show()
+                        }) { Text("Copy report") }
+                        OutlinedButton(onClick = { CrashLog.clear(); crash = null }) { Text("Clear") }
+                    }
+                }
             }
         }
     }

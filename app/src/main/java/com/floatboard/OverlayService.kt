@@ -221,6 +221,7 @@ class OverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLog.install(applicationContext)
         SoundStore.init(applicationContext)
         AppSettings.init(applicationContext)
         Entitlement.init(applicationContext)
@@ -428,6 +429,11 @@ class OverlayService : Service() {
             onResizeEnd = ::onResizeEnd
         )
         root.addView(compose, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+
+        // Compose looks up the lifecycle owner from the TOP view of the window, which is `root`.
+        root.setViewTreeLifecycleOwner(owner)
+        root.setViewTreeSavedStateRegistryOwner(owner)
+        root.setViewTreeViewModelStoreOwner(owner)
 
         try {
             windowManager.addView(root, lp)
