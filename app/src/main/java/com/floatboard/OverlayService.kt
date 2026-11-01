@@ -77,6 +77,7 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         SoundStore.init(applicationContext)
+        AppSettings.init(applicationContext)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
     }
 
@@ -107,7 +108,7 @@ class OverlayService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(R.drawable.ic_music)
             .setContentTitle("FloatBoard is live")
             .setContentText("Floating soundboard is on screen")
             .setOngoing(true)

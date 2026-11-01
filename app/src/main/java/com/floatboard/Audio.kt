@@ -10,22 +10,38 @@ import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import java.io.File
 
-/** Fire-and-forget playback. Clips can overlap (max 8 at once, oldest gets dropped). */
+/**
+ * Playback with a "now playing" state the UI can observe.
+ * Overlap off (default): a new tap replaces the current sound. Overlap on: up to 8 clips at once.
+ */
 object SoundPlayer {
     private const val TAG = "SoundPlayer"
     private const val MAX_ACTIVE = 8
     private val active = mutableListOf<MediaPlayer>()
+    private var primary: MediaPlayer? = null
+
+    var nowPlaying by mutableStateOf<Sound?>(null)
+        private set
+    var isPlaying by mutableStateOf(false)
+        private set
+    var durationMs by mutableIntStateOf(0)
+        private set
 
     fun play(sound: Sound) {
         val file = SoundStore.fileOf(sound)
         if (!file.exists()) return
-        val oldest = synchronized(active) { if (active.size >= MAX_ACTIVE) active.first() else null }
-        oldest?.let { drop(it) }
+        if (!AppSettings.overlap) {
+            stopAll()
+        } else {
+            val oldest = synchronized(active) { if (active.size >= MAX_ACTIVE) active.first() else null }
+            oldest?.let { drop(it) }
+        }
 
         val mp = MediaPlayer()
         try {
@@ -36,7 +52,13 @@ object SoundPlayer {
                     .build()
             )
             mp.setDataSource(file.absolutePath)
-            mp.setOnPreparedListener { it.start() }
+            mp.setOnPreparedListener { p ->
+                p.start()
+                if (p === primary) {
+                    durationMs = p.duration
+                    isPlaying = true
+                }
+            }
             mp.setOnCompletionListener { drop(it) }
             mp.setOnErrorListener { p, what, extra ->
                 Log.w(TAG, "player error what=$what extra=$extra")
@@ -44,11 +66,41 @@ object SoundPlayer {
                 true
             }
             synchronized(active) { active.add(mp) }
+            primary = mp
+            nowPlaying = sound
+            isPlaying = false
+            durationMs = sound.durationMs.toInt()
             mp.prepareAsync()
         } catch (e: Exception) {
             Log.e(TAG, "play failed for ${sound.name}", e)
             drop(mp)
         }
+    }
+
+    /** Pause/resume the current sound, or replay it if it already finished. */
+    fun togglePause() {
+        val mp = primary
+        if (mp == null) {
+            nowPlaying?.let { play(it) }
+            return
+        }
+        try {
+            if (mp.isPlaying) {
+                mp.pause()
+                isPlaying = false
+            } else {
+                mp.start()
+                isPlaying = true
+            }
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "toggle before ready", e)
+        }
+    }
+
+    fun positionMs(): Int = try {
+        primary?.currentPosition ?: 0
+    } catch (e: IllegalStateException) {
+        0
     }
 
     fun stopAll() {
@@ -57,10 +109,17 @@ object SoundPlayer {
             try { if (it.isPlaying) it.stop() } catch (_: IllegalStateException) {}
             drop(it)
         }
+        primary = null
+        nowPlaying = null
+        isPlaying = false
     }
 
     private fun drop(mp: MediaPlayer) {
         synchronized(active) { active.remove(mp) }
+        if (mp === primary) {
+            primary = null
+            isPlaying = false
+        }
         try { mp.release() } catch (_: Exception) {}
     }
 }
