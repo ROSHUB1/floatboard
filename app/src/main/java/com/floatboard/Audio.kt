@@ -7,41 +7,68 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import java.io.File
 
 /**
- * Playback with a "now playing" state the UI can observe.
- * Overlap off (default): a new tap replaces the current sound. Overlap on: up to 8 clips at once.
+ * Playback with observable state for the UI: what's playing, what's queued, and 0..1 progress.
+ * Tap behavior comes from AppSettings.playMode (queue / replace / overlap).
  */
 object SoundPlayer {
     private const val TAG = "SoundPlayer"
     private const val MAX_ACTIVE = 8
+    private const val MAX_QUEUE = 20
+
     private val active = mutableListOf<MediaPlayer>()
     private var primary: MediaPlayer? = null
+    private var durationMs = 0
+    private val handler = Handler(Looper.getMainLooper())
+
+    /** Sounds waiting to play after the current one (queue mode). */
+    val queue = mutableStateListOf<Sound>()
 
     var nowPlaying by mutableStateOf<Sound?>(null)
         private set
+    /** True from the moment a sound is started until it ends or is stopped (including paused). */
+    var isBusy by mutableStateOf(false)
+        private set
     var isPlaying by mutableStateOf(false)
         private set
-    var durationMs by mutableIntStateOf(0)
+    var progress by mutableFloatStateOf(0f)
         private set
 
-    fun play(sound: Sound) {
-        val file = SoundStore.fileOf(sound)
-        if (!file.exists()) return
-        if (!AppSettings.overlap) {
-            stopAll()
-        } else {
-            val oldest = synchronized(active) { if (active.size >= MAX_ACTIVE) active.first() else null }
-            oldest?.let { drop(it) }
+    private val ticker = object : Runnable {
+        override fun run() {
+            val d = durationMs
+            progress = if (d > 0) (positionMs().toFloat() / d).coerceIn(0f, 1f) else 0f
+            if (isPlaying) handler.postDelayed(this, 33)
         }
+    }
+
+    fun play(sound: Sound) {
+        if (!SoundStore.fileOf(sound).exists()) return
+        when (AppSettings.playMode) {
+            PlayMode.QUEUE ->
+                if (primary != null) { if (queue.size < MAX_QUEUE) queue.add(sound) } else start(sound)
+            PlayMode.REPLACE -> { stopAll(); start(sound) }
+            else -> start(sound)
+        }
+    }
+
+    private fun start(sound: Sound) {
+        val file = SoundStore.fileOf(sound)
+        if (!file.exists()) { advance(); return }
+        val oldest = synchronized(active) { if (active.size >= MAX_ACTIVE) active.first() else null }
+        oldest?.let { drop(it) }
 
         val mp = MediaPlayer()
         try {
@@ -57,44 +84,73 @@ object SoundPlayer {
                 if (p === primary) {
                     durationMs = p.duration
                     isPlaying = true
+                    handler.removeCallbacks(ticker)
+                    handler.post(ticker)
                 }
             }
-            mp.setOnCompletionListener { drop(it) }
+            mp.setOnCompletionListener { finished(it) }
             mp.setOnErrorListener { p, what, extra ->
                 Log.w(TAG, "player error what=$what extra=$extra")
-                drop(p)
+                finished(p)
                 true
             }
             synchronized(active) { active.add(mp) }
             primary = mp
             nowPlaying = sound
+            isBusy = true
             isPlaying = false
+            progress = 0f
             durationMs = sound.durationMs.toInt()
             mp.prepareAsync()
         } catch (e: Exception) {
             Log.e(TAG, "play failed for ${sound.name}", e)
             drop(mp)
+            advance()
         }
     }
 
-    /** Pause/resume the current sound, or replay it if it already finished. */
+    private fun finished(mp: MediaPlayer) {
+        val wasPrimary = mp === primary
+        drop(mp)
+        if (wasPrimary) advance()
+    }
+
+    private fun advance() {
+        if (AppSettings.playMode == PlayMode.QUEUE && queue.isNotEmpty()) start(queue.removeAt(0))
+    }
+
+    /** Pause/resume the current sound, or replay the last one if nothing is active. */
     fun togglePause() {
         val mp = primary
         if (mp == null) {
-            nowPlaying?.let { play(it) }
+            nowPlaying?.let { start(it) }
             return
         }
         try {
             if (mp.isPlaying) {
                 mp.pause()
                 isPlaying = false
+                handler.removeCallbacks(ticker)
             } else {
                 mp.start()
                 isPlaying = true
+                handler.removeCallbacks(ticker)
+                handler.post(ticker)
             }
         } catch (e: IllegalStateException) {
             Log.w(TAG, "toggle before ready", e)
         }
+    }
+
+    /** Ends the current sound and moves on to the next queued one. */
+    fun skip() {
+        val mp = primary ?: return
+        try { if (mp.isPlaying) mp.stop() } catch (_: IllegalStateException) {}
+        finished(mp)
+    }
+
+    fun removeFromQueue(index: Int) {
+        if (index in queue.indices) queue.removeAt(index)
     }
 
     fun positionMs(): Int = try {
@@ -104,6 +160,7 @@ object SoundPlayer {
     }
 
     fun stopAll() {
+        queue.clear()
         val copy = synchronized(active) { active.toList() }
         copy.forEach {
             try { if (it.isPlaying) it.stop() } catch (_: IllegalStateException) {}
@@ -111,14 +168,20 @@ object SoundPlayer {
         }
         primary = null
         nowPlaying = null
+        isBusy = false
         isPlaying = false
+        progress = 0f
+        handler.removeCallbacks(ticker)
     }
 
     private fun drop(mp: MediaPlayer) {
         synchronized(active) { active.remove(mp) }
         if (mp === primary) {
             primary = null
+            isBusy = false
             isPlaying = false
+            progress = 0f
+            handler.removeCallbacks(ticker)
         }
         try { mp.release() } catch (_: Exception) {}
     }
@@ -140,6 +203,10 @@ object VoiceRecorder {
 
     private fun start(context: Context) {
         val app = context.applicationContext
+        if (!Entitlement.canAddSound()) {
+            toast(app, "Free plan holds ${Entitlement.FREE_SOUND_LIMIT} sounds. Go Pro for unlimited.")
+            return
+        }
         if (ContextCompat.checkSelfPermission(app, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             toast(app, "Mic permission missing. Open FloatBoard, allow mic, relaunch the board.")
             return

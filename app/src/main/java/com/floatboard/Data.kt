@@ -66,7 +66,12 @@ object SoundStore {
         0L
     }
 
-    fun importFrom(context: Context, uri: Uri): Sound? = try {
+    fun importFrom(context: Context, uri: Uri): Sound? {
+        if (!Entitlement.canAddSound()) return null
+        return importUnchecked(context, uri)
+    }
+
+    private fun importUnchecked(context: Context, uri: Uri): Sound? = try {
         val resolver = context.contentResolver
         var display = "sound"
         resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->

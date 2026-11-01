@@ -23,6 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -96,14 +100,35 @@ fun IconBtn(
     ) { AppIcon(res, size * 0.5f, tint, description) }
 }
 
-/** Sound image: picked cover if there is one, otherwise a muted colored tile with initials. */
+/**
+ * Sound image: picked cover if there is one, otherwise a muted colored tile with initials.
+ * [progress] (read while drawing, so it never recomposes) paints a soft left-to-right sweep over the image.
+ */
 @Composable
-fun SoundThumb(sound: Sound?, size: Dp, corner: Dp = 10.dp) {
+fun SoundThumb(sound: Sound?, size: Dp, corner: Dp = 10.dp, progress: (() -> Float)? = null) {
     val cover = if (sound != null) rememberCover(sound) else null
     val bg = if (sound == null) Pal.SurfaceHi
     else Color.hsv(((sound.id.hashCode() and 0x7fffffff) % 360).toFloat(), 0.35f, 0.42f)
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(corner)).background(bg),
+        Modifier.size(size).clip(RoundedCornerShape(corner)).background(bg)
+            .drawWithContent {
+                drawContent()
+                val p = progress?.invoke() ?: 0f
+                if (p > 0f) {
+                    val w = this.size.width
+                    val h = this.size.height
+                    val x = w * p
+                    drawRect(Pal.Accent.copy(alpha = 0.30f), size = Size(x, h))
+                    val soft = minOf(x, w * 0.22f)
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            listOf(Pal.Accent.copy(alpha = 0f), Pal.Accent.copy(alpha = 0.6f)),
+                            startX = x - soft, endX = x
+                        ),
+                        topLeft = Offset(x - soft, 0f), size = Size(soft, h)
+                    )
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         when {
