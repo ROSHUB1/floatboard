@@ -1,5 +1,6 @@
 package com.floatboard
 
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.MutableTransitionState
@@ -52,6 +53,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -248,6 +250,7 @@ private fun Board(
 
 @Composable
 private fun SoundTile(sound: Sound, thumbDp: Int, active: Boolean, onTap: () -> Unit) {
+    val view = LocalView.current
     var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         if (pressed) 0.92f else 1f, spring(dampingRatio = 0.55f, stiffness = 500f), label = "tileScale"
@@ -267,7 +270,10 @@ private fun SoundTile(sound: Sound, thumbDp: Int, active: Boolean, onTap: () -> 
                         tryAwaitRelease()
                         pressed = false
                     },
-                    onTap = { onTap() }
+                    onTap = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onTap()
+                    }
                 )
             }
             .padding(vertical = 8.dp, horizontal = 4.dp),

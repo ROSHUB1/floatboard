@@ -1,0 +1,54 @@
+[
+  {
+    "file": "air-horn.wav",
+    "name": "Air Horn"
+  },
+  {
+    "file": "coin-pickup.wav",
+    "name": "Coin Pickup"
+  },
+  {
+    "file": "deep-boom.wav",
+    "name": "Deep Boom"
+  },
+  {
+    "file": "ding.wav",
+    "name": "Ding"
+  },
+  {
+    "file": "drum-hit.wav",
+    "name": "Drum Hit"
+  },
+  {
+    "file": "error-buzz.wav",
+    "name": "Error Buzz"
+  },
+  {
+    "file": "glitch.wav",
+    "name": "Glitch"
+  },
+  {
+    "file": "laser.wav",
+    "name": "Laser"
+  },
+  {
+    "file": "level-up.wav",
+    "name": "Level Up"
+  },
+  {
+    "file": "pop.wav",
+    "name": "Pop"
+  },
+  {
+    "file": "sad-slide.wav",
+    "name": "Sad Slide"
+  },
+  {
+    "file": "siren.wav",
+    "name": "Siren"
+  },
+  {
+    "file": "whoosh.wav",
+    "name": "Whoosh"
+  }
+]

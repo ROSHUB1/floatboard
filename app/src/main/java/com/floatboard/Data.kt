@@ -25,7 +25,8 @@ data class Sound(
     val name: String,
     val file: String,
     val cover: String? = null,
-    val durationMs: Long = 0L
+    val durationMs: Long = 0L,
+    val builtin: Boolean = false
 )
 
 /** Process-wide sound library. Shared by MainActivity and OverlayService (same process). */
@@ -98,6 +99,39 @@ object SoundStore {
         save()
     }
 
+    /** Copies the bundled starter sounds (assets/starter) into the library once. Safe to call on every launch. */
+    @Synchronized
+    fun installStarterPack(context: Context) {
+        val prefs = context.applicationContext.getSharedPreferences("floatboard_starter", Context.MODE_PRIVATE)
+        val done = (prefs.getStringSet("installed", emptySet()) ?: emptySet()).toMutableSet()
+        val index = try {
+            JSONArray(context.assets.open("starter/index.json").bufferedReader().use { it.readText() })
+        } catch (e: Exception) {
+            Log.w(TAG, "no starter pack", e)
+            return
+        }
+        var changed = false
+        for (i in 0 until index.length()) {
+            val o = index.getJSONObject(i)
+            val file = o.getString("file")
+            if (file in done) continue
+            try {
+                val id = UUID.randomUUID().toString()
+                val target = File(dir, "$id.${file.substringAfterLast('.', "wav")}")
+                context.assets.open("starter/$file").use { src -> target.outputStream().use { dst -> src.copyTo(dst) } }
+                sounds.add(Sound(id, o.getString("name"), target.name, null, durationOf(target), builtin = true))
+                done.add(file)
+                changed = true
+            } catch (e: Exception) {
+                Log.e(TAG, "starter sound failed: $file", e)
+            }
+        }
+        if (changed) {
+            save()
+            prefs.edit().putStringSet("installed", done).apply()
+        }
+    }
+
     fun rename(id: String, newName: String) {
         val i = sounds.indexOfFirst { it.id == id }
         if (i >= 0) {
@@ -163,7 +197,8 @@ object SoundStore {
                         name = it.getString("name"),
                         file = it.getString("file"),
                         cover = it.optString("cover", "").ifEmpty { null },
-                        durationMs = it.optLong("duration", 0L)
+                        durationMs = it.optLong("duration", 0L),
+                        builtin = it.optBoolean("builtin", false)
                     )
                 }
                 .filter { File(dir, it.file).exists() }
@@ -181,7 +216,7 @@ object SoundStore {
             sounds.forEach {
                 arr.put(
                     JSONObject().put("id", it.id).put("name", it.name).put("file", it.file)
-                        .put("cover", it.cover ?: "").put("duration", it.durationMs)
+                        .put("cover", it.cover ?: "").put("duration", it.durationMs).put("builtin", it.builtin)
                 )
             }
             val tmp = File(index.parentFile, "sounds.json.tmp")

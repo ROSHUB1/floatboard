@@ -1,5 +1,6 @@
 package com.floatboard
 
+import android.view.HapticFeedbackConstants
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -24,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -60,15 +62,15 @@ import androidx.compose.ui.unit.sp
 
 /** One accent color (amber), reserved for "this is what's playing". Everything else is flat dark. */
 object Pal {
-    val Bg = Color(0xFF0E1015)
-    val Surface = Color(0xFF171A21)
-    val SurfaceHi = Color(0xFF1F232C)
-    val Outline = Color(0xFF2A2F3A)
-    val TextHi = Color(0xFFEDEFF3)
-    val TextLo = Color(0xFF9AA3B2)
+    val Bg = Color(0xFF000000)
+    val Surface = Color(0xFF1C1C1E)
+    val SurfaceHi = Color(0xFF2C2C2E)
+    val Outline = Color(0xFF38383A)
+    val TextHi = Color(0xFFFFFFFF)
+    val TextLo = Color(0xFF8E8E93)
     val Accent = Color(0xFF5CDDF0)   // cyan sampled from the icon set
     val Accent2 = Color(0xFF7F49ED)  // purple from the icon set, used only for the sweep's leading edge
-    val Danger = Color(0xFFFF6B6B)
+    val Danger = Color(0xFFFF453A)
 }
 
 @Composable
@@ -230,6 +232,7 @@ fun Modifier.pulse(enabled: Boolean, amount: Float = 0.08f, periodMs: Int = 700)
 fun Modifier.bouncyClick(onClick: () -> Unit): Modifier = composed {
     var pressed by remember { mutableStateOf(false) }
     val current by rememberUpdatedState(onClick)
+    val view = LocalView.current
     val s by animateFloatAsState(
         if (pressed) 0.84f else 1f, spring(dampingRatio = 0.45f, stiffness = 600f), label = "bouncy"
     )
@@ -241,7 +244,10 @@ fun Modifier.bouncyClick(onClick: () -> Unit): Modifier = composed {
                     tryAwaitRelease()
                     pressed = false
                 },
-                onTap = { current() }
+                onTap = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    current()
+                }
             )
         }
 }

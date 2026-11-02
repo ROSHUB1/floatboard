@@ -24,11 +24,11 @@ import java.security.spec.X509EncodedKeySpec
 object Entitlement {
     const val FREE_SOUND_LIMIT = 20
 
-    /** Optional link to where people can pay (Ko-fi, payment link, your page). Empty hides the button. */
-    val PURCHASE_URL = ""
+    /** Optional payment link, set in LicenseConfig.kt. */
+    val PURCHASE_URL: String get() = LicenseConfig.PURCHASE_URL
 
-    /** Paste the output of `node tools/license.js keygen` here (base64 X.509 public key). */
-    private const val PUBLIC_KEY_B64 = ""
+    /** The public key lives in LicenseConfig.kt. */
+    private val PUBLIC_KEY_B64: String get() = LicenseConfig.PUBLIC_KEY_B64
 
     private const val TAG = "Entitlement"
     private lateinit var prefs: SharedPreferences
@@ -45,7 +45,10 @@ object Entitlement {
     val isPro: Boolean
         get() = plan == "pro" && (expiresAtSec == 0L || System.currentTimeMillis() / 1000 < expiresAtSec)
 
-    fun canAddSound(): Boolean = isPro || SoundStore.sounds.size < FREE_SOUND_LIMIT
+    /** Sounds the user added themselves. The built-in starter sounds don't use up free slots. */
+    fun usedSlots(): Int = SoundStore.sounds.count { !it.builtin }
+
+    fun canAddSound(): Boolean = isPro || usedSlots() < FREE_SOUND_LIMIT
 
     @Synchronized
     fun init(context: Context) {

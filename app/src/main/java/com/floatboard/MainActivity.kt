@@ -1,6 +1,7 @@
 package com.floatboard
 
 import android.Manifest
+import android.view.HapticFeedbackConstants
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -13,14 +14,18 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +58,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,9 +67,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,6 +79,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
@@ -95,7 +105,7 @@ class MainActivity : ComponentActivity() {
                     var rejected = 0
                     uris.forEach { if (SoundStore.importFrom(applicationContext, it) == null) rejected++ }
                     if (rejected > 0) {
-                        val msg = if (!Entitlement.isPro && SoundStore.sounds.size >= Entitlement.FREE_SOUND_LIMIT)
+                        val msg = if (!Entitlement.isPro && Entitlement.usedSlots() >= Entitlement.FREE_SOUND_LIMIT)
                             "Free plan holds ${Entitlement.FREE_SOUND_LIMIT} sounds. Go Pro for unlimited."
                         else "$rejected file(s) couldn't be added"
                         withContext(Dispatchers.Main) {
@@ -127,16 +137,29 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLog.install(applicationContext)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         SoundStore.init(applicationContext)
         AppSettings.init(applicationContext)
         Entitlement.init(applicationContext)
+        lifecycleScope.launch(Dispatchers.IO) { SoundStore.installStarterPack(applicationContext) }
         setContent {
             FloatTheme {
                 Surface(Modifier.fillMaxSize(), color = Pal.Bg) {
                     var tab by remember { mutableStateOf(Tab.Home) }
                     BackHandler(enabled = tab != Tab.Home) { tab = Tab.Home }
-                    Column(Modifier.fillMaxSize().background(Pal.Bg)) {
+                    var splashDone by rememberSaveable { mutableStateOf(false) }
+                    val reveal = remember { Animatable(if (splashDone) 1f else 0f) }
+                    Column(
+                        Modifier.fillMaxSize().background(Pal.Bg).graphicsLayer {
+                            val p = reveal.value
+                            alpha = p
+                            scaleX = 0.94f + 0.06f * p
+                            scaleY = 0.94f + 0.06f * p
+                        }
+                    ) {
                         Box(Modifier.weight(1f).fillMaxWidth().statusBarsPadding()) {
                             Crossfade(targetState = tab, animationSpec = tween(180), label = "tab") { t ->
                                 when (t) {
@@ -149,6 +172,7 @@ class MainActivity : ComponentActivity() {
                         }
                         NavBar(tab) { tab = it }
                     }
+                    if (!splashDone) SplashOverlay(reveal) { splashDone = true }
                 }
             }
         }
@@ -199,8 +223,12 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun NavBar(selected: Tab, onSelect: (Tab) -> Unit) {
+        val view = LocalView.current
+        val barShape = RoundedCornerShape(30.dp)
         Row(
-            Modifier.fillMaxWidth().background(Pal.Surface).navigationBarsPadding().padding(vertical = 6.dp)
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)
+                .clip(barShape).background(Pal.Surface.copy(alpha = 0.94f))
+                .border(0.5.dp, Pal.Outline, barShape).padding(vertical = 6.dp)
         ) {
             Tab.values().forEach { t ->
                 val sel = t == selected
@@ -213,7 +241,10 @@ class MainActivity : ComponentActivity() {
                     if (sel && t == Tab.Settings) 180f else 0f, tween(650), label = "navSpin"
                 )
                 Column(
-                    Modifier.weight(1f).clickable { onSelect(t) }.padding(vertical = 6.dp),
+                    Modifier.weight(1f).clickable {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onSelect(t)
+                    }.padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     AppIcon(
@@ -241,15 +272,16 @@ class MainActivity : ComponentActivity() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AppIcon(R.drawable.ic_logo, 44.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.06f, 800))
                 Column(Modifier.padding(start = 12.dp)) {
-                    Text("FloatBoard", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("FloatBoard", color = Pal.TextHi, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
                     Text("Your soundboard, anywhere", color = Pal.TextLo, fontSize = 13.sp)
                 }
             }
 
             val running = OverlayService.running
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(16.dp))
-                    .background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(26.dp))
+                    .background(Brush.linearGradient(listOf(Pal.Accent.copy(alpha = 0.26f), Pal.Accent2.copy(alpha = 0.26f))))
+                    .padding(20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(if (running) Pal.Accent else Pal.Outline))
@@ -296,13 +328,13 @@ class MainActivity : ComponentActivity() {
 
             if (!Entitlement.isPro) {
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text("Free plan", color = Pal.TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            "${sounds.size} / ${Entitlement.FREE_SOUND_LIMIT} sounds",
+                            "${Entitlement.usedSlots()} / ${Entitlement.FREE_SOUND_LIMIT} sounds",
                             color = Pal.TextLo, fontSize = 12.sp
                         )
                     }
@@ -311,7 +343,7 @@ class MainActivity : ComponentActivity() {
             }
 
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIcon(R.drawable.ic_expand, 22.dp, Pal.TextLo)
@@ -348,7 +380,7 @@ class MainActivity : ComponentActivity() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         AppIcon(R.drawable.ic_wave, 30.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.14f, 380))
                         Spacer(Modifier.width(10.dp))
-                        Text("Sounds", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Text("Sounds", color = Pal.TextHi, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
                     }
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
@@ -385,7 +417,7 @@ class MainActivity : ComponentActivity() {
                 val active = SoundPlayer.isBusy && SoundPlayer.nowPlaying?.id == s.id
                 val playingNow = active && SoundPlayer.isPlaying
                 Row(
-                    Modifier.animateItem().fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface)
+                    Modifier.animateItem().fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface)
                         .clickable { SoundPlayer.play(s) }.padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -489,10 +521,10 @@ class MainActivity : ComponentActivity() {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("FloatBoard Pro", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("FloatBoard Pro", color = Pal.TextHi, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
 
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Pal.Surface).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIcon(R.drawable.ic_star, 26.dp, if (pro) Pal.Accent else Pal.TextLo)
@@ -503,7 +535,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Text(
                         when {
-                            !pro -> "${SoundStore.sounds.size} / ${Entitlement.FREE_SOUND_LIMIT} sounds used"
+                            !pro -> "${Entitlement.usedSlots()} / ${Entitlement.FREE_SOUND_LIMIT} sounds used"
                             Entitlement.expiresAtSec == 0L -> "Lifetime license"
                             else -> "Active until " + DateFormat.getDateInstance(DateFormat.MEDIUM)
                                 .format(Date(Entitlement.expiresAtSec * 1000))
@@ -514,7 +546,7 @@ class MainActivity : ComponentActivity() {
             }
 
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Pal.Surface).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("What Pro gives you", color = Pal.TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -543,7 +575,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Pal.Surface).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("Activate", color = Pal.TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -585,9 +617,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.2.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "4.0.0"
         } catch (e: Exception) {
-            "3.2.0"
+            "4.0.0"
         }
 
         Column(
@@ -597,12 +629,12 @@ class MainActivity : ComponentActivity() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AppIcon(R.drawable.ic_tune, 32.dp)
                 Spacer(Modifier.width(10.dp))
-                Text("Settings", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Settings", color = Pal.TextHi, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
             }
 
             SectionLabel("Floating window")
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -648,7 +680,7 @@ class MainActivity : ComponentActivity() {
 
             SectionLabel("Permissions")
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
@@ -659,7 +691,7 @@ class MainActivity : ComponentActivity() {
             }
 
             SectionLabel("About")
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp)) {
                 Text("FloatBoard", color = Pal.TextHi, fontSize = 15.sp)
                 Text("Version $version", color = Pal.TextLo, fontSize = 12.sp)
             }
@@ -668,7 +700,7 @@ class MainActivity : ComponentActivity() {
             crash?.let { report ->
                 SectionLabel("Last crash")
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
@@ -713,6 +745,62 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+}
+
+/** Launch animation: logo springs in, a ring ripples out, the name rises, then the app scales up from behind. */
+@Composable
+private fun SplashOverlay(reveal: Animatable<Float, androidx.compose.animation.core.AnimationVector1D>, onDone: () -> Unit) {
+    val logoScale = remember { Animatable(0.55f) }
+    val logoAlpha = remember { Animatable(0f) }
+    val ring = remember { Animatable(0f) }
+    val title = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        launch { logoAlpha.animateTo(1f, tween(320)) }
+        launch { logoScale.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 200f)) }
+        launch { delay(180); ring.animateTo(1f, tween(1000, easing = FastOutSlowInEasing)) }
+        launch { delay(420); title.animateTo(1f, tween(520, easing = FastOutSlowInEasing)) }
+        delay(1350)
+        reveal.animateTo(1f, tween(520, easing = FastOutSlowInEasing))
+        onDone()
+    }
+
+    Box(
+        Modifier.fillMaxSize().background(Color.Black).graphicsLayer { alpha = 1f - reveal.value },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier.size(200.dp)
+                .graphicsLayer {
+                    val sc = 0.5f + ring.value * 1.3f
+                    scaleX = sc
+                    scaleY = sc
+                    alpha = (1f - ring.value) * 0.55f
+                }
+                .border(2.dp, Pal.Accent, CircleShape)
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            AppIcon(
+                R.drawable.ic_logo, 120.dp,
+                modifier = Modifier.graphicsLayer {
+                    val sc = logoScale.value * (1f + reveal.value * 0.4f)
+                    scaleX = sc
+                    scaleY = sc
+                    alpha = logoAlpha.value
+                }
+            )
+            Spacer(Modifier.height(22.dp))
+            Text(
+                "FloatBoard", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.5).sp,
+                modifier = Modifier.graphicsLayer { alpha = title.value; translationY = (1f - title.value) * 28f }
+            )
+            Text(
+                "Your soundboard, anywhere", color = Pal.TextLo, fontSize = 14.sp,
+                modifier = Modifier.graphicsLayer { alpha = title.value; translationY = (1f - title.value) * 28f }
+            )
         }
     }
 }

@@ -24,7 +24,7 @@ if (cmd === 'keygen') {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   fs.writeFileSync(KEY_FILE, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
   console.log('Private key saved to tools/private.pem (keep it secret, back it up).\n');
-  console.log('Paste this into Entitlement.kt as PUBLIC_KEY_B64:\n');
+  console.log('Paste this into LicenseConfig.kt as PUBLIC_KEY_B64:\n');
   console.log(publicKey.export({ type: 'spki', format: 'der' }).toString('base64'));
 } else if (cmd === 'sign') {
   if (!name || days === undefined || isNaN(Number(days))) {
