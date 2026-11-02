@@ -17,6 +17,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,6 +60,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,11 +76,11 @@ import java.text.DateFormat
 import java.util.Date
 import kotlin.math.roundToInt
 
-private enum class Tab(val label: String, val icon: Int) {
-    Home("Home", R.drawable.ic_home),
-    Sounds("Sounds", R.drawable.ic_list),
-    Pro("Pro", R.drawable.ic_star),
-    Settings("Settings", R.drawable.ic_settings)
+private enum class Tab(val label: String, val icon: Int, val tinted: Boolean) {
+    Home("Home", R.drawable.ic_grid, false),
+    Sounds("Sounds", R.drawable.ic_wave, false),
+    Pro("Pro", R.drawable.ic_star, true),
+    Settings("Settings", R.drawable.ic_settings, false)
 }
 
 class MainActivity : ComponentActivity() {
@@ -199,14 +203,25 @@ class MainActivity : ComponentActivity() {
             Modifier.fillMaxWidth().background(Pal.Surface).navigationBarsPadding().padding(vertical = 6.dp)
         ) {
             Tab.values().forEach { t ->
-                val color by animateColorAsState(
-                    if (t == selected) Pal.Accent else Pal.TextLo, tween(160), label = "navColor"
+                val sel = t == selected
+                val color by animateColorAsState(if (sel) Pal.Accent else Pal.TextLo, tween(160), label = "navColor")
+                val grow by animateFloatAsState(
+                    if (sel) 1.2f else 1f, spring(dampingRatio = 0.45f, stiffness = 380f), label = "navGrow"
+                )
+                val fade by animateFloatAsState(if (sel) 1f else 0.55f, tween(180), label = "navFade")
+                val spin by animateFloatAsState(
+                    if (sel && t == Tab.Settings) 180f else 0f, tween(650), label = "navSpin"
                 )
                 Column(
                     Modifier.weight(1f).clickable { onSelect(t) }.padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    AppIcon(t.icon, 24.dp, color, t.label)
+                    AppIcon(
+                        t.icon, 28.dp, if (t.tinted) color else Color.Unspecified, t.label,
+                        Modifier
+                            .pulse(t == Tab.Sounds && SoundPlayer.isPlaying, 0.14f, 380)
+                            .graphicsLayer { scaleX = grow; scaleY = grow; alpha = fade; rotationZ = spin }
+                    )
                     Spacer(Modifier.height(2.dp))
                     Text(t.label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 }
@@ -224,7 +239,7 @@ class MainActivity : ComponentActivity() {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AppIcon(R.drawable.ic_logo, 44.dp)
+                AppIcon(R.drawable.ic_logo, 44.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.06f, 800))
                 Column(Modifier.padding(start = 12.dp)) {
                     Text("FloatBoard", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Text("Your soundboard, anywhere", color = Pal.TextLo, fontSize = 13.sp)
@@ -273,7 +288,7 @@ class MainActivity : ComponentActivity() {
                     { pickAudio.launch(arrayOf("audio/*")) }, Modifier.weight(1f)
                 )
                 ActionTile(
-                    if (VoiceRecorder.isRecording) R.drawable.ic_stop else R.drawable.ic_mic,
+                    if (VoiceRecorder.isRecording) R.drawable.ic_stop_flat else R.drawable.ic_mic,
                     if (VoiceRecorder.isRecording) "Stop" else "Record",
                     { toggleRecord() }, Modifier.weight(1f), highlight = VoiceRecorder.isRecording
                 )
@@ -330,7 +345,11 @@ class MainActivity : ComponentActivity() {
         ) {
             item {
                 Column {
-                    Text("Sounds", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AppIcon(R.drawable.ic_wave, 30.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.14f, 380))
+                        Spacer(Modifier.width(10.dp))
+                        Text("Sounds", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    }
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
                         value = query,
@@ -345,10 +364,20 @@ class MainActivity : ComponentActivity() {
 
             if (sounds.isEmpty()) {
                 item {
-                    Text(
-                        "No sounds yet. Add audio files from Home, or record one with the mic.",
-                        color = Pal.TextLo, fontSize = 13.sp, modifier = Modifier.padding(vertical = 16.dp)
-                    )
+                    Column(
+                        Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        AppIcon(
+                            R.drawable.ic_speaker, 72.dp,
+                            modifier = Modifier.clip(RoundedCornerShape(18.dp)).pulse(true, 0.05f, 1400)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "No sounds yet. Add audio files from Home, or record one with the mic.",
+                            color = Pal.TextLo, fontSize = 13.sp
+                        )
+                    }
                 }
             }
 
@@ -368,12 +397,7 @@ class MainActivity : ComponentActivity() {
                         )
                         Text(fmt(s.durationMs), color = Pal.TextLo, fontSize = 12.sp)
                     }
-                    IconBtn(
-                        res = if (playingNow) R.drawable.ic_pause else R.drawable.ic_play,
-                        description = if (playingNow) "Pause" else "Play",
-                        onClick = { if (active) SoundPlayer.togglePause() else SoundPlayer.play(s) },
-                        size = 40.dp
-                    )
+                    PlayPauseBtn(playingNow, { if (active) SoundPlayer.togglePause() else SoundPlayer.play(s) }, size = 46.dp)
                     Spacer(Modifier.width(6.dp))
                     IconBtn(R.drawable.ic_more, "More", { sheetId = s.id }, size = 40.dp, container = Pal.Surface)
                 }
@@ -392,7 +416,7 @@ class MainActivity : ComponentActivity() {
                     Text(sheetSound.name, color = Pal.TextHi, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(fmt(sheetSound.durationMs), color = Pal.TextLo, fontSize = 13.sp)
                     Spacer(Modifier.height(12.dp))
-                    ActionRow(R.drawable.ic_play, "Play") { SoundPlayer.play(sheetSound); sheetId = null }
+                    ActionRow(R.drawable.ic_play, "Play", keepColors = true) { SoundPlayer.play(sheetSound); sheetId = null }
                     ActionRow(R.drawable.ic_edit, "Rename") { renaming = sheetSound; sheetId = null }
                     ActionRow(R.drawable.ic_image, if (Entitlement.isPro) "Change image" else "Change image (Pro)") {
                         sheetId = null
@@ -561,16 +585,20 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.0.1"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "3.2.0"
         } catch (e: Exception) {
-            "3.0.1"
+            "3.2.0"
         }
 
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Settings", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AppIcon(R.drawable.ic_tune, 32.dp)
+                Spacer(Modifier.width(10.dp))
+                Text("Settings", color = Pal.TextHi, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            }
 
             SectionLabel("Floating window")
             Column(

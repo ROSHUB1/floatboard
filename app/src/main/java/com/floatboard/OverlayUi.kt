@@ -142,7 +142,7 @@ private fun Bubble(onDragStart: () -> Unit, onDragMove: () -> Unit, onRestore: (
             .border(2.dp, ring, CircleShape)
             .dragHandle(onDragStart, onDragMove).clickable(onClick = onRestore),
         contentAlignment = Alignment.Center
-    ) { AppIcon(R.drawable.ic_logo, 36.dp, description = "Open soundboard") }
+    ) { AppIcon(R.drawable.ic_logo, 36.dp, description = "Open soundboard", modifier = Modifier.pulse(SoundPlayer.isPlaying)) }
 }
 
 @Composable
@@ -177,7 +177,7 @@ private fun Board(
                     Box(Modifier.width(36.dp).height(4.dp).clip(CircleShape).background(Pal.Outline))
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    AppIcon(R.drawable.ic_logo, 26.dp)
+                    AppIcon(R.drawable.ic_logo, 26.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying))
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "FloatBoard", color = Pal.TextHi, fontSize = 16.sp,
@@ -191,10 +191,17 @@ private fun Board(
 
             if (sounds.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                    Text(
-                        "No sounds yet.\nOpen the app to add some, or tap the mic to record one.",
-                        color = Pal.TextLo, fontSize = 12.sp, textAlign = TextAlign.Center
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        AppIcon(
+                            R.drawable.ic_speaker, 56.dp,
+                            modifier = Modifier.clip(RoundedCornerShape(14.dp)).pulse(true, 0.05f, 1400)
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "No sounds yet.\nOpen the app to add some, or tap the mic to record one.",
+                            color = Pal.TextLo, fontSize = 12.sp, textAlign = TextAlign.Center
+                        )
+                    }
                 }
             } else {
                 LazyVerticalGrid(
@@ -214,13 +221,13 @@ private fun Board(
                 Modifier.fillMaxWidth().padding(top = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconBtn(R.drawable.ic_stop, "Stop all", { SoundPlayer.stopAll() }, size = 44.dp)
+                ImageBtn(R.drawable.ic_stop, "Stop all", { SoundPlayer.stopAll() }, size = 46.dp)
                 Spacer(Modifier.width(10.dp))
                 MicButton(recording) { VoiceRecorder.toggle(context) }
                 Spacer(Modifier.width(10.dp))
                 QueueStrip(Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
-                IconBtn(R.drawable.ic_grid, "Open app", onOpenApp, size = 44.dp)
+                ImageBtn(R.drawable.ic_grid, "Open app", onOpenApp, size = 46.dp)
             }
         }
 
@@ -346,7 +353,7 @@ private fun MicButton(recording: Boolean, onClick: () -> Unit) {
     Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
         if (recording) PulseRing()
         IconBtn(
-            res = if (recording) R.drawable.ic_stop else R.drawable.ic_mic,
+            res = if (recording) R.drawable.ic_stop_flat else R.drawable.ic_mic,
             description = if (recording) "Stop recording" else "Record",
             onClick = onClick,
             size = 56.dp,
