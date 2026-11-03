@@ -19,6 +19,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 
 data class Sound(
     val id: String,
@@ -26,13 +29,21 @@ data class Sound(
     val file: String,
     val cover: String? = null,
     val durationMs: Long = 0L,
-    val builtin: Boolean = false
+    val builtin: Boolean = false,
+    val fav: Boolean = false
 )
+
+/** Outcome of importing a sound pack zip. */
+data class PackResult(val added: Int, val failed: Int, val limitHit: Boolean, val tooLarge: Boolean = false)
 
 /** Process-wide sound library. Shared by MainActivity and OverlayService (same process). */
 object SoundStore {
     private const val TAG = "SoundStore"
     private const val COVER_SIZE = 256
+    private const val MAX_PACK_FILES = 600
+    private const val MAX_PACK_BYTES = 400L * 1024 * 1024
+    private const val MAX_PACK_FILE_BYTES = 25L * 1024 * 1024
+    private val AUDIO_EXTENSIONS = setOf("mp3", "wav", "ogg", "m4a", "aac", "flac", "opus")
 
     val sounds = mutableStateListOf<Sound>()
 
@@ -132,6 +143,114 @@ object SoundStore {
         }
     }
 
+    fun toggleFav(id: String) {
+        val i = sounds.indexOfFirst { it.id == id }
+        if (i >= 0) {
+            sounds[i] = sounds[i].copy(fav = !sounds[i].fav)
+            save()
+        }
+    }
+
+    /**
+     * Adds every audio file in a zip to the library. The zip is only read, never kept: the files are copied
+     * into the app, so a pack can live on the phone instead of inside the app or the repo.
+     * An optional index.json in the zip ([{file, name, fav}]) supplies names and favorites.
+     */
+    fun importPack(context: Context, uri: Uri, onProgress: (Int) -> Unit = {}): PackResult {
+        val tmp = File(context.cacheDir, "pack-${UUID.randomUUID()}.zip")
+        try {
+            val input = context.contentResolver.openInputStream(uri) ?: return PackResult(0, 0, false)
+            input.use { src -> tmp.outputStream().use { dst -> src.copyTo(dst) } }
+            if (tmp.length() > MAX_PACK_BYTES) return PackResult(0, 0, false, tooLarge = true)
+
+            var added = 0
+            var limitHit = false
+            var total = 0
+            ZipFile(tmp).use { zip ->
+                val meta = HashMap<String, JSONObject>()
+                zip.getEntry("index.json")?.let { e ->
+                    try {
+                        val arr = JSONArray(zip.getInputStream(e).bufferedReader().use { it.readText() })
+                        for (i in 0 until arr.length()) {
+                            val o = arr.getJSONObject(i)
+                            meta[o.getString("file")] = o
+                        }
+                    } catch (ex: Exception) {
+                        Log.w(TAG, "bad pack index, using file names", ex)
+                    }
+                }
+                val entries = zip.entries().asSequence()
+                    .filter { !it.isDirectory }
+                    .filter { !it.name.startsWith("__MACOSX") && !it.name.substringAfterLast('/').startsWith(".") }
+                    .filter { it.name.substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS }
+                    .take(MAX_PACK_FILES)
+                    .toList()
+                total = entries.size
+
+                for (entry in entries) {
+                    if (!Entitlement.canAddSound()) { limitHit = true; break }
+                    val base = entry.name.substringAfterLast('/')
+                    val id = UUID.randomUUID().toString()
+                    val target = File(dir, "$id.${base.substringAfterLast('.').lowercase()}")
+                    var copied = 0L
+                    var tooBig = false
+                    zip.getInputStream(entry).use { src ->
+                        target.outputStream().use { dst ->
+                            val buf = ByteArray(16 * 1024)
+                            while (true) {
+                                val n = src.read(buf)
+                                if (n < 0) break
+                                copied += n
+                                if (copied > MAX_PACK_FILE_BYTES) { tooBig = true; break }
+                                dst.write(buf, 0, n)
+                            }
+                        }
+                    }
+                    val duration = if (tooBig || copied == 0L) 0L else durationOf(target)
+                    if (duration == 0L) { target.delete(); continue }   // not real audio, or too big
+                    val m = meta[entry.name] ?: meta[base]
+                    val name = (m?.optString("name")?.takeIf { it.isNotBlank() } ?: base.substringBeforeLast('.')).take(40)
+                    sounds.add(Sound(id, name, target.name, null, duration, false, m?.optBoolean("fav", false) ?: false))
+                    added++
+                    onProgress(added)
+                }
+            }
+            if (added > 0) save()
+            return PackResult(added, if (limitHit) 0 else total - added, limitHit)
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    /** Writes the user's own sounds (not the built-in starter pack) into a zip with an index.json. Returns how many. */
+    fun exportPack(context: Context, uri: Uri): Int {
+        val mine = sounds.filter { !it.builtin }
+        var count = 0
+        val out = context.contentResolver.openOutputStream(uri) ?: return 0
+        ZipOutputStream(out.buffered()).use { zip ->
+            val used = HashSet<String>()
+            val index = JSONArray()
+            for (s in mine) {
+                val src = fileOf(s)
+                if (!src.exists()) continue
+                val ext = s.file.substringAfterLast('.', "mp3")
+                val stem = s.name.replace(Regex("[^A-Za-z0-9 _.-]"), "").trim().ifEmpty { "sound" }.take(60)
+                var entryName = "$stem.$ext"
+                var n = 2
+                while (!used.add(entryName)) { entryName = "$stem-$n.$ext"; n++ }
+                zip.putNextEntry(ZipEntry(entryName))
+                src.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+                index.put(JSONObject().put("file", entryName).put("name", s.name).put("fav", s.fav))
+                count++
+            }
+            zip.putNextEntry(ZipEntry("index.json"))
+            zip.write(index.toString(2).toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+        }
+        return count
+    }
+
     fun rename(id: String, newName: String) {
         val i = sounds.indexOfFirst { it.id == id }
         if (i >= 0) {
@@ -198,7 +317,8 @@ object SoundStore {
                         file = it.getString("file"),
                         cover = it.optString("cover", "").ifEmpty { null },
                         durationMs = it.optLong("duration", 0L),
-                        builtin = it.optBoolean("builtin", false)
+                        builtin = it.optBoolean("builtin", false),
+                        fav = it.optBoolean("fav", false)
                     )
                 }
                 .filter { File(dir, it.file).exists() }
@@ -216,7 +336,7 @@ object SoundStore {
             sounds.forEach {
                 arr.put(
                     JSONObject().put("id", it.id).put("name", it.name).put("file", it.file)
-                        .put("cover", it.cover ?: "").put("duration", it.durationMs).put("builtin", it.builtin)
+                        .put("cover", it.cover ?: "").put("duration", it.durationMs).put("builtin", it.builtin).put("fav", it.fav)
                 )
             }
             val tmp = File(index.parentFile, "sounds.json.tmp")

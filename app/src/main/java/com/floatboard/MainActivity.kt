@@ -7,6 +7,7 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.util.Log
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -97,6 +98,7 @@ class MainActivity : ComponentActivity() {
 
     private var overlayGranted by mutableStateOf(false)
     private var pendingCoverFor: String? = null
+    private var packStatus by mutableStateOf<String?>(null)
 
     private val pickAudio =
         registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
@@ -114,6 +116,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+
+    private val importPackLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            if (uri != null) runImportPack(uri)
+        }
+
+    private val exportPackLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri: Uri? ->
+            if (uri != null) runExportPack(uri)
         }
 
     private val pickCover =
@@ -186,6 +198,47 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         if (isFinishing && VoiceRecorder.isRecording && !OverlayService.running) VoiceRecorder.stop(this)
         super.onDestroy()
+    }
+
+    private fun runImportPack(uri: Uri) {
+        packStatus = "Importing pack..."
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = try {
+                SoundStore.importPack(applicationContext, uri) { n -> packStatus = "Importing pack... $n added" }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "pack import failed", e)
+                null
+            }
+            withContext(Dispatchers.Main) {
+                packStatus = null
+                val msg = when {
+                    result == null -> "Couldn't read that zip"
+                    result.tooLarge -> "That zip is too large (max 400 MB)"
+                    result.limitHit -> "Added ${result.added}. Free plan is full, go Pro for unlimited."
+                    result.added == 0 -> "No playable audio found in that zip"
+                    result.failed > 0 -> "Added ${result.added}, skipped ${result.failed}"
+                    else -> "Added ${result.added} sounds"
+                }
+                Toast.makeText(applicationContext, msg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun runExportPack(uri: Uri) {
+        packStatus = "Exporting pack..."
+        lifecycleScope.launch(Dispatchers.IO) {
+            val count = try {
+                SoundStore.exportPack(applicationContext, uri)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "pack export failed", e)
+                -1
+            }
+            withContext(Dispatchers.Main) {
+                packStatus = null
+                val msg = if (count < 0) "Export failed" else "Exported $count sounds"
+                Toast.makeText(applicationContext, msg, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun openOverlaySettings() {
@@ -326,6 +379,27 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActionTile(
+                    R.drawable.ic_import, "Import pack",
+                    {
+                        importPackLauncher.launch(
+                            arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
+                        )
+                    },
+                    Modifier.weight(1f)
+                )
+                ActionTile(
+                    R.drawable.ic_export, "Export pack",
+                    {
+                        if (sounds.any { !it.builtin }) exportPackLauncher.launch("FloatBoard-pack.zip")
+                        else Toast.makeText(this@MainActivity, "Add some sounds first", Toast.LENGTH_SHORT).show()
+                    },
+                    Modifier.weight(1f)
+                )
+            }
+            packStatus?.let { Text(it, color = Pal.Accent, fontSize = 13.sp) }
+
             if (!Entitlement.isPro) {
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
@@ -368,7 +442,8 @@ class MainActivity : ComponentActivity() {
         var sheetId by remember { mutableStateOf<String?>(null) }
         var renaming by remember { mutableStateOf<Sound?>(null) }
         var deleting by remember { mutableStateOf<Sound?>(null) }
-        val visible = sounds.filter { it.name.contains(query, ignoreCase = true) }
+        var favsOnly by remember { mutableStateOf(false) }
+        val visible = sounds.filter { it.name.contains(query, ignoreCase = true) && (!favsOnly || it.fav) }
 
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -391,6 +466,12 @@ class MainActivity : ComponentActivity() {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(Modifier.height(10.dp))
+                    SegmentedRow(listOf("All", "Favorites"), if (favsOnly) 1 else 0) { favsOnly = it == 1 }
+                    packStatus?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(it, color = Pal.Accent, fontSize = 13.sp)
+                    }
                 }
             }
 
@@ -430,7 +511,12 @@ class MainActivity : ComponentActivity() {
                         Text(fmt(s.durationMs), color = Pal.TextLo, fontSize = 12.sp)
                     }
                     PlayPauseBtn(playingNow, { if (active) SoundPlayer.togglePause() else SoundPlayer.play(s) }, size = 46.dp)
-                    Spacer(Modifier.width(6.dp))
+                    IconBtn(
+                        R.drawable.ic_star, if (s.fav) "Remove favorite" else "Favorite",
+                        { SoundStore.toggleFav(s.id) }, size = 40.dp, container = Pal.Surface,
+                        tint = if (s.fav) Pal.Accent else Pal.TextLo
+                    )
+                    Spacer(Modifier.width(2.dp))
                     IconBtn(R.drawable.ic_more, "More", { sheetId = s.id }, size = 40.dp, container = Pal.Surface)
                 }
             }
@@ -617,9 +703,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "4.0.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "5.0.0"
         } catch (e: Exception) {
-            "4.0.0"
+            "5.0.0"
         }
 
         Column(

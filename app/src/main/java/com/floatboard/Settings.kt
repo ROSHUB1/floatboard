@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /** What happens when you tap a sound while another one is playing. */
@@ -34,6 +35,8 @@ object AppSettings {
         private set
     var floatHDp by mutableFloatStateOf(DEFAULT_H)
         private set
+    var overlayFavsOnly by mutableStateOf(false)
+        private set
 
     /** Thumbnail size of a tile in the floating grid (dp). */
     val tileThumbDp: Int get() = when (tile) { 0 -> 40; 1 -> 52; else -> 64 }
@@ -47,6 +50,7 @@ object AppSettings {
         playMode = prefs.getInt("playMode", PlayMode.QUEUE).coerceIn(0, 2)
         floatWDp = prefs.getFloat("floatW", DEFAULT_W).coerceAtLeast(MIN_W)
         floatHDp = prefs.getFloat("floatH", DEFAULT_H).coerceAtLeast(MIN_H)
+        overlayFavsOnly = prefs.getBoolean("overlayFavsOnly", false)
     }
 
     fun updateOpacity(value: Float) {
@@ -71,4 +75,9 @@ object AppSettings {
     }
 
     fun resetFloatSize() = updateFloatSize(DEFAULT_W, DEFAULT_H)
+
+    fun updateOverlayFavsOnly(value: Boolean) {
+        overlayFavsOnly = value
+        prefs.edit().putBoolean("overlayFavsOnly", value).apply()
+    }
 }

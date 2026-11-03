@@ -158,6 +158,8 @@ private fun Board(
     val context = LocalContext.current
     val density = LocalDensity.current.density
     val sounds = SoundStore.sounds
+    val favsOnly = AppSettings.overlayFavsOnly
+    val shown = sounds.filter { !favsOnly || it.fav }.sortedByDescending { it.fav }
     val recording = VoiceRecorder.isRecording
     val resizing = OverlayUiState.resizing
     val shape = RoundedCornerShape(20.dp)
@@ -185,13 +187,20 @@ private fun Board(
                         "FloatBoard", color = Pal.TextHi, fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)
                     )
+                    IconBtn(
+                        R.drawable.ic_star, "Favorites only", { AppSettings.updateOverlayFavsOnly(!favsOnly) },
+                        size = 32.dp,
+                        container = if (favsOnly) Pal.Accent else Pal.SurfaceHi,
+                        tint = if (favsOnly) Pal.Bg else Pal.TextLo
+                    )
+                    Spacer(Modifier.width(6.dp))
                     IconBtn(R.drawable.ic_minimize, "Minimize", onMinimize, size = 32.dp)
                     Spacer(Modifier.width(6.dp))
                     IconBtn(R.drawable.ic_close, "Close", onClose, size = 32.dp)
                 }
             }
 
-            if (sounds.isEmpty()) {
+            if (shown.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         AppIcon(
@@ -200,7 +209,8 @@ private fun Board(
                         )
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            "No sounds yet.\nOpen the app to add some, or tap the mic to record one.",
+                            if (favsOnly && sounds.isNotEmpty()) "No favorites yet.\nStar sounds in the Sounds tab."
+                            else "No sounds yet.\nOpen the app to add some, or tap the mic to record one.",
                             color = Pal.TextLo, fontSize = 12.sp, textAlign = TextAlign.Center
                         )
                     }
@@ -212,7 +222,7 @@ private fun Board(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(sounds, key = { it.id }) { sound ->
+                    items(shown, key = { it.id }) { sound ->
                         val active = SoundPlayer.isBusy && SoundPlayer.nowPlaying?.id == sound.id
                         SoundTile(sound, thumb, active) { SoundPlayer.play(sound) }
                     }
