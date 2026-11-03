@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -62,15 +63,26 @@ import androidx.compose.ui.unit.sp
 
 /** One accent color (amber), reserved for "this is what's playing". Everything else is flat dark. */
 object Pal {
-    val Bg = Color(0xFF000000)
-    val Surface = Color(0xFF1C1C1E)
-    val SurfaceHi = Color(0xFF2C2C2E)
-    val Outline = Color(0xFF38383A)
-    val TextHi = Color(0xFFFFFFFF)
-    val TextLo = Color(0xFF8E8E93)
-    val Accent = Color(0xFF5CDDF0)   // cyan sampled from the icon set
-    val Accent2 = Color(0xFF7F49ED)  // purple from the icon set, used only for the sweep's leading edge
-    val Danger = Color(0xFFFF453A)
+    val Bg = Color(0xFF0C0C0E)
+    val Surface = Color(0xFF151518)
+    val SurfaceHi = Color(0xFF1E1E22)
+    val Outline = Color(0xFF2A2A30)
+    val TextHi = Color(0xFFF2F2F4)
+    val TextLo = Color(0xFF9A9AA4)
+    val Accent = Color(0xFF5BB8CA)    // one muted teal, used for "active / selected / primary" only
+    val Accent2 = Color(0xFF9ED6E1)   // lighter tint of the same accent (leading edge of the playback sweep)
+    val Danger = Color(0xFFE5584E)
+}
+
+/** Type scale. Every text in the app picks one of these. */
+object Ty {
+    val LargeTitle = TextStyle(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+    val Title = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
+    val Headline = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
+    val Body = TextStyle(fontSize = 15.sp, lineHeight = 21.sp)
+    val Callout = TextStyle(fontSize = 13.sp, lineHeight = 18.sp)
+    val Caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
+    val Overline = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
 }
 
 @Composable
@@ -179,7 +191,7 @@ fun ActionTile(
     modifier: Modifier = Modifier,
     highlight: Boolean = false
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(16.dp)
     Row(
         modifier.clip(shape).background(Pal.Surface)
             .border(1.dp, if (highlight) Pal.Danger else Pal.Outline, shape)

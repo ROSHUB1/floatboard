@@ -51,6 +51,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -68,6 +69,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -168,8 +171,8 @@ class MainActivity : ComponentActivity() {
                         Modifier.fillMaxSize().background(Pal.Bg).graphicsLayer {
                             val p = reveal.value
                             alpha = p
-                            scaleX = 0.94f + 0.06f * p
-                            scaleY = 0.94f + 0.06f * p
+                            scaleX = 0.97f + 0.03f * p
+                            scaleY = 0.97f + 0.03f * p
                         }
                     ) {
                         Box(Modifier.weight(1f).fillMaxWidth().statusBarsPadding()) {
@@ -277,37 +280,32 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun NavBar(selected: Tab, onSelect: (Tab) -> Unit) {
         val view = LocalView.current
-        val barShape = RoundedCornerShape(30.dp)
-        Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)
-                .clip(barShape).background(Pal.Surface.copy(alpha = 0.94f))
-                .border(0.5.dp, Pal.Outline, barShape).padding(vertical = 6.dp)
-        ) {
-            Tab.values().forEach { t ->
-                val sel = t == selected
-                val color by animateColorAsState(if (sel) Pal.Accent else Pal.TextLo, tween(160), label = "navColor")
-                val grow by animateFloatAsState(
-                    if (sel) 1.2f else 1f, spring(dampingRatio = 0.45f, stiffness = 380f), label = "navGrow"
-                )
-                val fade by animateFloatAsState(if (sel) 1f else 0.55f, tween(180), label = "navFade")
-                val spin by animateFloatAsState(
-                    if (sel && t == Tab.Settings) 180f else 0f, tween(650), label = "navSpin"
-                )
-                Column(
-                    Modifier.weight(1f).clickable {
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        onSelect(t)
-                    }.padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    AppIcon(
-                        t.icon, 28.dp, if (t.tinted) color else Color.Unspecified, t.label,
-                        Modifier
-                            .pulse(t == Tab.Sounds && SoundPlayer.isPlaying, 0.14f, 380)
-                            .graphicsLayer { scaleX = grow; scaleY = grow; alpha = fade; rotationZ = spin }
+        Column(Modifier.fillMaxWidth().background(Pal.Surface)) {
+            Box(Modifier.fillMaxWidth().height(0.5.dp).background(Pal.Outline))
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 6.dp, bottom = 4.dp)) {
+                Tab.values().forEach { t ->
+                    val sel = t == selected
+                    val color by animateColorAsState(if (sel) Pal.Accent else Pal.TextLo, tween(160), label = "navColor")
+                    val grow by animateFloatAsState(
+                        if (sel) 1.08f else 1f, spring(dampingRatio = 0.6f, stiffness = 400f), label = "navGrow"
                     )
-                    Spacer(Modifier.height(2.dp))
-                    Text(t.label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    val fade by animateFloatAsState(if (sel) 1f else 0.6f, tween(180), label = "navFade")
+                    Column(
+                        Modifier.weight(1f).clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            onSelect(t)
+                        }.padding(vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        AppIcon(
+                            t.icon, 26.dp, if (t.tinted) color else Color.Unspecified, t.label,
+                            Modifier
+                                .pulse(t == Tab.Sounds && SoundPlayer.isPlaying, 0.1f, 420)
+                                .graphicsLayer { scaleX = grow; scaleY = grow; alpha = fade }
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(t.label, color = color, style = Ty.Caption.copy(fontWeight = FontWeight.Medium))
+                    }
                 }
             }
         }
@@ -325,27 +323,27 @@ class MainActivity : ComponentActivity() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AppIcon(R.drawable.ic_logo, 44.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.06f, 800))
                 Column(Modifier.padding(start = 12.dp)) {
-                    Text("FloatBoard", color = Pal.TextHi, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
+                    Text("FloatBoard", color = Pal.TextHi, style = Ty.LargeTitle)
                     Text("Your soundboard, anywhere", color = Pal.TextLo, fontSize = 13.sp)
                 }
             }
 
             val running = OverlayService.running
+            val heroShape = RoundedCornerShape(16.dp)
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(26.dp))
-                    .background(Brush.linearGradient(listOf(Pal.Accent.copy(alpha = 0.26f), Pal.Accent2.copy(alpha = 0.26f))))
-                    .padding(20.dp),
+                Modifier.fillMaxWidth().padding(top = 4.dp).clip(heroShape)
+                    .background(Pal.Surface).border(1.dp, Pal.Outline, heroShape).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(if (running) Pal.Accent else Pal.Outline))
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                     Text(
                         when {
                             !overlayGranted -> "Permission needed"
                             running -> "Board is live"
                             else -> "Floating board"
                         },
-                        color = Pal.TextHi, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                        color = Pal.TextHi, style = Ty.Headline
                     )
                     Text(
                         when {
@@ -353,20 +351,20 @@ class MainActivity : ComponentActivity() {
                             running -> "Floating over your apps"
                             else -> "Ready to launch"
                         },
-                        color = Pal.TextLo, fontSize = 12.sp
+                        color = Pal.TextLo, style = Ty.Callout
                     )
                 }
-                Button(onClick = { if (running) stopBoard() else startBoard() }) {
-                    Text(
-                        when {
-                            !overlayGranted -> "Allow"
-                            running -> "Close"
-                            else -> "Launch"
-                        }
-                    )
+                val heroLabel = when {
+                    !overlayGranted -> "Allow"
+                    running -> "Close"
+                    else -> "Launch"
                 }
+                val onHero = { if (running) stopBoard() else startBoard() }
+                if (running) OutlinedButton(onClick = onHero) { Text(heroLabel) }
+                else Button(onClick = onHero) { Text(heroLabel) }
             }
 
+            SectionLabel("Quick actions")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ActionTile(
                     R.drawable.ic_add, "Add sounds",
@@ -379,6 +377,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
+            SectionLabel("Library")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ActionTile(
                     R.drawable.ic_import, "Import pack",
@@ -402,7 +401,7 @@ class MainActivity : ComponentActivity() {
 
             if (!Entitlement.isPro) {
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -417,7 +416,7 @@ class MainActivity : ComponentActivity() {
             }
 
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIcon(R.drawable.ic_expand, 22.dp, Pal.TextLo)
@@ -448,14 +447,14 @@ class MainActivity : ComponentActivity() {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             item {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         AppIcon(R.drawable.ic_wave, 30.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.14f, 380))
                         Spacer(Modifier.width(10.dp))
-                        Text("Sounds", color = Pal.TextHi, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
+                        Text("Sounds", color = Pal.TextHi, style = Ty.LargeTitle)
                     }
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
@@ -475,6 +474,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            item { Spacer(Modifier.height(8.dp)) }
+
             if (sounds.isEmpty()) {
                 item {
                     Column(
@@ -483,7 +484,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         AppIcon(
                             R.drawable.ic_speaker, 72.dp,
-                            modifier = Modifier.clip(RoundedCornerShape(18.dp)).pulse(true, 0.05f, 1400)
+                            modifier = Modifier.clip(RoundedCornerShape(16.dp)).pulse(true, 0.05f, 1400)
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
@@ -498,8 +499,12 @@ class MainActivity : ComponentActivity() {
                 val active = SoundPlayer.isBusy && SoundPlayer.nowPlaying?.id == s.id
                 val playingNow = active && SoundPlayer.isPlaying
                 Row(
-                    Modifier.animateItem().fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface)
-                        .clickable { SoundPlayer.play(s) }.padding(10.dp),
+                    Modifier.animateItem().fillMaxWidth()
+                        .drawBehind {
+                            val y = this.size.height - 0.5.dp.toPx()
+                            drawLine(Pal.Outline, Offset(64.dp.toPx(), y), Offset(this.size.width, y), 1.dp.toPx())
+                        }
+                        .clickable { SoundPlayer.play(s) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SoundThumb(s, 48.dp, progress = if (active) ({ SoundPlayer.progress }) else null)
@@ -607,10 +612,10 @@ class MainActivity : ComponentActivity() {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("FloatBoard Pro", color = Pal.TextHi, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
+            Text("FloatBoard Pro", color = Pal.TextHi, style = Ty.LargeTitle)
 
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIcon(R.drawable.ic_star, 26.dp, if (pro) Pal.Accent else Pal.TextLo)
@@ -632,7 +637,7 @@ class MainActivity : ComponentActivity() {
             }
 
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("What Pro gives you", color = Pal.TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -661,7 +666,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("Activate", color = Pal.TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -703,9 +708,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "5.0.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "5.1.0"
         } catch (e: Exception) {
-            "5.0.0"
+            "5.1.0"
         }
 
         Column(
@@ -715,12 +720,12 @@ class MainActivity : ComponentActivity() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AppIcon(R.drawable.ic_tune, 32.dp)
                 Spacer(Modifier.width(10.dp))
-                Text("Settings", color = Pal.TextHi, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
+                Text("Settings", color = Pal.TextHi, style = Ty.LargeTitle)
             }
 
             SectionLabel("Floating window")
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -739,7 +744,7 @@ class MainActivity : ComponentActivity() {
                 Text("Tile size", color = Pal.TextHi, fontSize = 15.sp)
                 SegmentedRow(listOf("Small", "Medium", "Large"), AppSettings.tile) { AppSettings.updateTile(it) }
 
-                Spacer(Modifier.height(6.dp))
+                HorizontalDivider(color = Pal.Outline, modifier = Modifier.padding(vertical = 8.dp))
                 Text("When you tap a sound while another plays", color = Pal.TextHi, fontSize = 15.sp)
                 SegmentedRow(listOf("Queue", "Replace", "Overlap"), AppSettings.playMode) { AppSettings.updatePlayMode(it) }
                 Text(
@@ -751,7 +756,7 @@ class MainActivity : ComponentActivity() {
                     color = Pal.TextLo, fontSize = 12.sp
                 )
 
-                Spacer(Modifier.height(6.dp))
+                HorizontalDivider(color = Pal.Outline, modifier = Modifier.padding(vertical = 8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Window size", color = Pal.TextHi, fontSize = 15.sp)
@@ -766,7 +771,7 @@ class MainActivity : ComponentActivity() {
 
             SectionLabel("Permissions")
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
@@ -777,7 +782,7 @@ class MainActivity : ComponentActivity() {
             }
 
             SectionLabel("About")
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp)) {
                 Text("FloatBoard", color = Pal.TextHi, fontSize = 15.sp)
                 Text("Version $version", color = Pal.TextLo, fontSize = 12.sp)
             }
@@ -786,7 +791,7 @@ class MainActivity : ComponentActivity() {
             crash?.let { report ->
                 SectionLabel("Last crash")
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
@@ -809,83 +814,69 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SectionLabel(text: String) {
         Text(
-            text, color = Pal.TextLo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 12.dp, start = 4.dp)
+            text.uppercase(), color = Pal.TextLo, style = Ty.Overline,
+            modifier = Modifier.padding(top = 8.dp, start = 4.dp)
         )
     }
 
     @Composable
     private fun SegmentedRow(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Pal.SurfaceHi).padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             options.forEachIndexed { i, label ->
                 val sel = i == selected
-                val bg by animateColorAsState(if (sel) Pal.Accent else Pal.SurfaceHi, tween(160), label = "segBg")
+                val bg by animateColorAsState(if (sel) Pal.Outline else Color.Transparent, tween(160), label = "segBg")
+                val fg by animateColorAsState(if (sel) Pal.TextHi else Pal.TextLo, tween(160), label = "segFg")
                 Box(
-                    Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(8.dp)).background(bg)
+                    Modifier.weight(1f).height(34.dp).clip(RoundedCornerShape(10.dp)).background(bg)
                         .clickable { onSelect(i) },
                     contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        label, color = if (sel) Pal.Bg else Pal.TextHi,
-                        fontSize = 13.sp, fontWeight = FontWeight.Medium
-                    )
-                }
+                ) { Text(label, color = fg, style = Ty.Callout.copy(fontWeight = FontWeight.Medium)) }
             }
         }
     }
 }
 
-/** Launch animation: logo springs in, a ring ripples out, the name rises, then the app scales up from behind. */
+/** Launch animation: the logo eases in, the name follows, then the app settles in from behind. */
 @Composable
 private fun SplashOverlay(reveal: Animatable<Float, androidx.compose.animation.core.AnimationVector1D>, onDone: () -> Unit) {
-    val logoScale = remember { Animatable(0.55f) }
+    val logoScale = remember { Animatable(0.82f) }
     val logoAlpha = remember { Animatable(0f) }
-    val ring = remember { Animatable(0f) }
     val title = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
-        launch { logoAlpha.animateTo(1f, tween(320)) }
-        launch { logoScale.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 200f)) }
-        launch { delay(180); ring.animateTo(1f, tween(1000, easing = FastOutSlowInEasing)) }
-        launch { delay(420); title.animateTo(1f, tween(520, easing = FastOutSlowInEasing)) }
-        delay(1350)
-        reveal.animateTo(1f, tween(520, easing = FastOutSlowInEasing))
+        launch { logoAlpha.animateTo(1f, tween(300)) }
+        launch { logoScale.animateTo(1f, spring(dampingRatio = 0.7f, stiffness = 260f)) }
+        launch { delay(260); title.animateTo(1f, tween(380, easing = FastOutSlowInEasing)) }
+        delay(1000)
+        reveal.animateTo(1f, tween(380, easing = FastOutSlowInEasing))
         onDone()
     }
 
     Box(
-        Modifier.fillMaxSize().background(Color.Black).graphicsLayer { alpha = 1f - reveal.value },
+        Modifier.fillMaxSize().background(Pal.Bg).graphicsLayer { alpha = 1f - reveal.value },
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            Modifier.size(200.dp)
-                .graphicsLayer {
-                    val sc = 0.5f + ring.value * 1.3f
-                    scaleX = sc
-                    scaleY = sc
-                    alpha = (1f - ring.value) * 0.55f
-                }
-                .border(2.dp, Pal.Accent, CircleShape)
-        )
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             AppIcon(
-                R.drawable.ic_logo, 120.dp,
+                R.drawable.ic_logo, 104.dp,
                 modifier = Modifier.graphicsLayer {
-                    val sc = logoScale.value * (1f + reveal.value * 0.4f)
-                    scaleX = sc
-                    scaleY = sc
+                    scaleX = logoScale.value
+                    scaleY = logoScale.value
                     alpha = logoAlpha.value
                 }
             )
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(20.dp))
             Text(
-                "FloatBoard", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.5).sp,
-                modifier = Modifier.graphicsLayer { alpha = title.value; translationY = (1f - title.value) * 28f }
+                "FloatBoard", color = Pal.TextHi, style = Ty.LargeTitle,
+                modifier = Modifier.graphicsLayer { alpha = title.value; translationY = (1f - title.value) * 16f }
             )
+            Spacer(Modifier.height(2.dp))
             Text(
-                "Your soundboard, anywhere", color = Pal.TextLo, fontSize = 14.sp,
-                modifier = Modifier.graphicsLayer { alpha = title.value; translationY = (1f - title.value) * 28f }
+                "Your soundboard, anywhere", color = Pal.TextLo, style = Ty.Body,
+                modifier = Modifier.graphicsLayer { alpha = title.value; translationY = (1f - title.value) * 16f }
             )
         }
     }
