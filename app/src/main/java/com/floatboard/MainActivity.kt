@@ -330,38 +330,45 @@ class MainActivity : ComponentActivity() {
 
             val running = OverlayService.running
             val heroShape = RoundedCornerShape(16.dp)
+            val heroLabel = when {
+                !overlayGranted -> "Allow"
+                running -> "Close"
+                else -> "Launch"
+            }
+            val onHero = { if (running) stopBoard() else startBoard() }
             Row(
                 Modifier.fillMaxWidth().padding(top = 4.dp).clip(heroShape)
-                    .background(Pal.Surface).border(1.dp, Pal.Outline, heroShape).padding(16.dp),
+                    .background(Pal.Surface).border(1.dp, Pal.Outline, heroShape)
+                    .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(if (running) Pal.Accent else Pal.Outline))
-                Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-                    Text(
-                        when {
-                            !overlayGranted -> "Permission needed"
-                            running -> "Board is live"
-                            else -> "Floating board"
-                        },
-                        color = Pal.TextHi, style = Ty.Headline
-                    )
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (running) Pal.Accent else Pal.Outline))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            when {
+                                !overlayGranted -> "Permission needed"
+                                running -> "Board is live"
+                                else -> "Floating board"
+                            },
+                            color = Pal.TextHi, style = Ty.Headline
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         when {
                             !overlayGranted -> "Allow display over other apps"
                             running -> "Floating over your apps"
-                            else -> "Ready to launch"
+                            else -> "Tap to open your soundboard"
                         },
                         color = Pal.TextLo, style = Ty.Callout
                     )
+                    Spacer(Modifier.height(14.dp))
+                    if (running) OutlinedButton(onClick = onHero) { Text(heroLabel) }
+                    else Button(onClick = onHero) { Text(heroLabel) }
                 }
-                val heroLabel = when {
-                    !overlayGranted -> "Allow"
-                    running -> "Close"
-                    else -> "Launch"
-                }
-                val onHero = { if (running) stopBoard() else startBoard() }
-                if (running) OutlinedButton(onClick = onHero) { Text(heroLabel) }
-                else Button(onClick = onHero) { Text(heroLabel) }
+                Mascot(120.dp, Modifier.pulse(SoundPlayer.isPlaying, 0.04f, 600))
             }
 
             SectionLabel("Quick actions")
@@ -618,7 +625,7 @@ class MainActivity : ComponentActivity() {
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppIcon(R.drawable.ic_star, 26.dp, if (pro) Pal.Accent else Pal.TextLo)
+                AppIcon(R.drawable.ic_gift, 44.dp)
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(
                         if (pro) "Pro is active" else "You're on the free plan",
@@ -708,9 +715,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "5.1.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "5.2.0"
         } catch (e: Exception) {
-            "5.1.0"
+            "5.2.0"
         }
 
         Column(
