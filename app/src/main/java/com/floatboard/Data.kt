@@ -46,6 +46,9 @@ object SoundStore {
     private val AUDIO_EXTENSIONS = setOf("mp3", "wav", "ogg", "m4a", "aac", "flac", "opus")
 
     val sounds = mutableStateListOf<Sound>()
+    /** Ids of the last sounds played, newest first (shown on Home). */
+    val recent = mutableStateListOf<String>()
+    private lateinit var appContext: Context
 
     private lateinit var dir: File
     private lateinit var coversDir: File
@@ -58,7 +61,9 @@ object SoundStore {
         dir = File(context.filesDir, "sounds").apply { mkdirs() }
         coversDir = File(context.filesDir, "covers").apply { mkdirs() }
         index = File(context.filesDir, "sounds.json")
+        appContext = context.applicationContext
         load()
+        loadRecent()
         ready = true
     }
 
@@ -141,6 +146,22 @@ object SoundStore {
             save()
             prefs.edit().putStringSet("installed", done).apply()
         }
+    }
+
+    private fun recentPrefs() = appContext.getSharedPreferences("floatboard_recent", Context.MODE_PRIVATE)
+
+    private fun loadRecent() {
+        val ids = recentPrefs().getString("ids", "").orEmpty().split(',').filter { it.isNotBlank() }
+        recent.clear()
+        recent.addAll(ids.take(8))
+    }
+
+    fun markUsed(id: String) {
+        if (!::appContext.isInitialized) return
+        recent.remove(id)
+        recent.add(0, id)
+        while (recent.size > 8) recent.removeAt(recent.size - 1)
+        recentPrefs().edit().putString("ids", recent.joinToString(",")).apply()
     }
 
     fun toggleFav(id: String) {

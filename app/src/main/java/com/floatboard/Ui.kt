@@ -2,6 +2,13 @@ package com.floatboard
 
 import android.view.HapticFeedbackConstants
 import androidx.annotation.DrawableRes
+import java.util.Locale
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -70,6 +77,7 @@ object Pal {
     val TextHi = Color(0xFFF2F2F4)
     val TextLo = Color(0xFF9A9AA4)
     val Accent = Color(0xFF5BB8CA)    // one muted teal, used for "active / selected / primary" only
+    val AccentSoft = Color(0x295BB8CA)   // accent at ~16%, for icon chips and selected backgrounds
     val Accent2 = Color(0xFF9ED6E1)   // lighter tint of the same accent (leading edge of the playback sweep)
     val Danger = Color(0xFFE5584E)
 }
@@ -100,6 +108,7 @@ fun FloatTheme(content: @Composable () -> Unit) {
 }
 
 fun fmt(ms: Long): String {
+    if (ms in 1..9_999) return String.format(Locale.US, "%.1fs", ms / 1000f)   // short clips read 0.4s, not 0:00
     val s = (ms / 1000).toInt()
     return "%d:%02d".format(s / 60, s % 60)
 }
@@ -139,16 +148,18 @@ fun IconBtn(
 }
 
 /**
- * Sound image: picked cover if there is one, otherwise a muted colored tile with initials.
+ * Sound image: the picked cover if there is one, otherwise a two-tone gradient tile with an equalizer glyph.
  * [progress] (read while drawing, so it never recomposes) paints a soft left-to-right sweep over the image.
  */
 @Composable
 fun SoundThumb(sound: Sound?, size: Dp, corner: Dp = 10.dp, progress: (() -> Float)? = null) {
     val cover = if (sound != null) rememberCover(sound) else null
-    val bg = if (sound == null) Pal.SurfaceHi
-    else Color.hsv(((sound.id.hashCode() and 0x7fffffff) % 360).toFloat(), 0.35f, 0.42f)
+    val tile: Brush = if (sound == null) SolidColor(Pal.SurfaceHi) else {
+        val hue = ((sound.id.hashCode() and 0x7fffffff) % 360).toFloat()
+        Brush.linearGradient(listOf(Color.hsv(hue, 0.42f, 0.62f), Color.hsv((hue + 28f) % 360f, 0.5f, 0.34f)))
+    }
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(corner)).background(bg)
+        Modifier.size(size).clip(RoundedCornerShape(corner)).background(tile)
             .drawWithContent {
                 drawContent()
                 val p = progress?.invoke() ?: 0f
@@ -174,13 +185,30 @@ fun SoundThumb(sound: Sound?, size: Dp, corner: Dp = 10.dp, progress: (() -> Flo
                 bitmap = cover, contentDescription = null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
             )
-            sound != null -> Text(
-                sound.name.take(2).uppercase(), color = Pal.TextHi,
-                fontWeight = FontWeight.Bold, fontSize = (size.value * 0.34f).sp
-            )
+            sound != null -> AppIcon(R.drawable.ic_bars, size * 0.46f, Color.White.copy(alpha = 0.88f))
             else -> AppIcon(R.drawable.ic_music, size * 0.5f, Pal.TextLo)
         }
     }
+}
+
+/** Card surface with a soft top-lit gradient and a hairline highlight, so cards read as raised, not flat. */
+fun Modifier.premiumSurface(shape: Shape = RoundedCornerShape(16.dp)): Modifier =
+    this.clip(shape)
+        .background(Brush.verticalGradient(listOf(Color(0xFF1B1B20), Color(0xFF141417))))
+        .border(1.dp, Brush.verticalGradient(listOf(Color(0x26FFFFFF), Color(0x0DFFFFFF))), shape)
+
+/** Rounded square with an accent-tinted icon inside: the one icon treatment for flat (single-colour) icons. */
+@Composable
+fun IconChip(
+    @DrawableRes res: Int,
+    tint: Color = Pal.Accent,
+    container: Color = Pal.AccentSoft,
+    size: Dp = 40.dp
+) {
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(12.dp)).background(container),
+        contentAlignment = Alignment.Center
+    ) { AppIcon(res, size * 0.5f, tint) }
 }
 
 @Composable
@@ -191,16 +219,18 @@ fun ActionTile(
     modifier: Modifier = Modifier,
     highlight: Boolean = false
 ) {
-    val shape = RoundedCornerShape(16.dp)
     Row(
-        modifier.clip(shape).background(Pal.Surface)
-            .border(1.dp, if (highlight) Pal.Danger else Pal.Outline, shape)
-            .clickable(onClick = onClick).padding(14.dp),
+        modifier.bouncyClick(onClick).premiumSurface(RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppIcon(res, 22.dp)
-        Spacer(Modifier.width(10.dp))
-        Text(label, color = Pal.TextHi, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        IconChip(
+            res,
+            tint = if (highlight) Pal.Danger else Pal.Accent,
+            container = if (highlight) Pal.Danger.copy(alpha = 0.16f) else Pal.AccentSoft
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(label, color = Pal.TextHi, style = Ty.Body.copy(fontWeight = FontWeight.Medium))
     }
 }
 
@@ -281,7 +311,10 @@ fun ImageBtn(
 /** Play and pause pictures that pop into each other. */
 @Composable
 fun PlayPauseBtn(playing: Boolean, onClick: () -> Unit, size: Dp = 44.dp, modifier: Modifier = Modifier) {
-    Box(modifier.size(size).bouncyClick(onClick), contentAlignment = Alignment.Center) {
+    Box(
+        modifier.size(size).bouncyClick(onClick).clip(CircleShape).background(Pal.SurfaceHi),
+        contentAlignment = Alignment.Center
+    ) {
         AnimatedContent(
             targetState = playing,
             transitionSpec = {
@@ -292,9 +325,45 @@ fun PlayPauseBtn(playing: Boolean, onClick: () -> Unit, size: Dp = 44.dp, modifi
         ) { p ->
             AppIcon(
                 if (p) R.drawable.ic_pause else R.drawable.ic_play,
-                size * 0.72f,
+                size * 0.56f,
                 description = if (p) "Pause" else "Play"
             )
+        }
+    }
+}
+
+/** Slim slider: thin track, round thumb. Replaces the stock Material slider, which looked heavy here. */
+@Composable
+fun PremiumSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    modifier: Modifier = Modifier
+) {
+    val span = valueRange.endInclusive - valueRange.start
+    val fraction = ((value - valueRange.start) / span).coerceIn(0f, 1f)
+    val update by rememberUpdatedState(onValueChange)
+    Box(
+        modifier.fillMaxWidth().height(32.dp)
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    update(valueRange.start + span * (offset.x / size.width).coerceIn(0f, 1f))
+                }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { change, _ ->
+                    change.consume()
+                    update(valueRange.start + span * (change.position.x / size.width).coerceIn(0f, 1f))
+                }
+            },
+        contentAlignment = Alignment.CenterStart
+    ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val thumb = 22.dp
+            val travel = maxWidth - thumb
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Pal.SurfaceHi).align(Alignment.CenterStart))
+            Box(Modifier.width(thumb / 2 + travel * fraction).height(4.dp).clip(CircleShape).background(Pal.Accent).align(Alignment.CenterStart))
+            Box(Modifier.offset(x = travel * fraction).size(thumb).clip(CircleShape).background(Color.White).align(Alignment.CenterStart))
         }
     }
 }

@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -169,7 +170,7 @@ class MainActivity : ComponentActivity() {
                     var splashDone by rememberSaveable { mutableStateOf(false) }
                     val reveal = remember { Animatable(if (splashDone) 1f else 0f) }
                     Column(
-                        Modifier.fillMaxSize().background(Pal.Bg).graphicsLayer {
+                        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111115), Pal.Bg))).graphicsLayer {
                             val p = reveal.value
                             alpha = p
                             scaleX = 0.97f + 0.03f * p
@@ -179,7 +180,7 @@ class MainActivity : ComponentActivity() {
                         Box(Modifier.weight(1f).fillMaxWidth().statusBarsPadding()) {
                             Crossfade(targetState = tab, animationSpec = tween(180), label = "tab") { t ->
                                 when (t) {
-                                    Tab.Home -> HomeScreen(goPro = { tab = Tab.Pro })
+                                    Tab.Home -> HomeScreen(goPro = { tab = Tab.Pro }, goSounds = { tab = Tab.Sounds })
                                     Tab.Sounds -> SoundsScreen(goPro = { tab = Tab.Pro })
                                     Tab.Pro -> ProScreen()
                                     Tab.Settings -> SettingsScreen()
@@ -344,7 +345,7 @@ class MainActivity : ComponentActivity() {
     // ───────────────────────── Home ─────────────────────────
 
     @Composable
-    private fun HomeScreen(goPro: () -> Unit) {
+    private fun HomeScreen(goPro: () -> Unit, goSounds: () -> Unit) {
         val sounds = SoundStore.sounds
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -367,14 +368,13 @@ class MainActivity : ComponentActivity() {
             }
             val onHero = { if (running) stopBoard() else startBoard() }
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp).clip(heroShape)
-                    .background(Pal.Surface).border(1.dp, Pal.Outline, heroShape)
+                Modifier.fillMaxWidth().padding(top = 4.dp).premiumSurface(heroShape)
                     .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (running) Pal.Accent else Pal.Outline))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (running) Pal.Accent else Color(0xFF6B6B75)))
                         Spacer(Modifier.width(8.dp))
                         Text(
                             when {
@@ -399,6 +399,43 @@ class MainActivity : ComponentActivity() {
                     else Button(onClick = onHero) { Text(heroLabel) }
                 }
                 Mascot(120.dp, Modifier.pulse(SoundPlayer.isPlaying, 0.04f, 600))
+            }
+
+            val recentSounds = SoundStore.recent.mapNotNull { id -> sounds.firstOrNull { it.id == id } }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { SectionLabel("Recently used") }
+                if (recentSounds.isNotEmpty()) {
+                    Text(
+                        "See all", color = Pal.Accent, style = Ty.Callout,
+                        modifier = Modifier.clickable { goSounds() }.padding(4.dp)
+                    )
+                }
+            }
+            if (recentSounds.isEmpty()) {
+                Text(
+                    "Sounds you play show up here for quick replay.",
+                    color = Pal.TextLo, style = Ty.Callout, modifier = Modifier.padding(start = 4.dp)
+                )
+            } else {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp)
+                ) {
+                    items(recentSounds, key = { it.id }) { s ->
+                        val active = SoundPlayer.isBusy && SoundPlayer.nowPlaying?.id == s.id
+                        Column(
+                            Modifier.width(72.dp).bouncyClick { SoundPlayer.play(s) },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            SoundThumb(s, 64.dp, 16.dp, progress = if (active) ({ SoundPlayer.progress }) else null)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                s.name, color = if (active) Pal.Accent else Pal.TextHi, style = Ty.Caption,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
 
             SectionLabel("Quick actions")
@@ -438,7 +475,7 @@ class MainActivity : ComponentActivity() {
 
             if (!Entitlement.isPro) {
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -453,10 +490,10 @@ class MainActivity : ComponentActivity() {
             }
 
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppIcon(R.drawable.ic_expand, 22.dp, Pal.TextLo)
+                IconChip(R.drawable.ic_expand)
                 Column(Modifier.padding(start = 14.dp)) {
                     Text("Resize the floating window", color = Pal.TextHi, fontSize = 15.sp)
                     Text(
@@ -653,7 +690,7 @@ class MainActivity : ComponentActivity() {
             Text("FloatBoard Pro", color = Pal.TextHi, style = Ty.LargeTitle)
 
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIcon(R.drawable.ic_gift, 44.dp)
@@ -675,13 +712,18 @@ class MainActivity : ComponentActivity() {
             }
 
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("What Pro gives you", color = Pal.TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                ProRow("Unlimited sounds (free: ${Entitlement.FREE_SOUND_LIMIT})")
-                ProRow("Your own image on every sound")
-                ProRow("Everything we add to Pro later")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("What Pro gives you", color = Pal.TextHi, style = Ty.Headline)
+                        ProRow("Unlimited sounds (free: ${Entitlement.FREE_SOUND_LIMIT})")
+                        ProRow("Your own image on every sound")
+                        ProRow("Everything we add to Pro later")
+                    }
+                    Mascot(96.dp)
+                }
             }
 
             if (pro) {
@@ -704,7 +746,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("Activate", color = Pal.TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -746,9 +788,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "5.3.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "6.0.0"
         } catch (e: Exception) {
-            "5.3.0"
+            "6.0.0"
         }
 
         Column(
@@ -763,7 +805,7 @@ class MainActivity : ComponentActivity() {
 
             SectionLabel("Floating window")
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -771,13 +813,9 @@ class MainActivity : ComponentActivity() {
                         Text("Window opacity", color = Pal.TextHi, fontSize = 15.sp)
                         Text("Background only, buttons stay solid", color = Pal.TextLo, fontSize = 12.sp)
                     }
-                    Text("${(AppSettings.opacity * 100).roundToInt()}%", color = Pal.TextLo, fontSize = 13.sp)
+                    Text("${(AppSettings.opacity * 100).roundToInt()}%", color = Pal.Accent, style = Ty.Headline)
                 }
-                Slider(
-                    value = AppSettings.opacity,
-                    onValueChange = { AppSettings.updateOpacity(it) },
-                    valueRange = 0.4f..1f
-                )
+                PremiumSlider(AppSettings.opacity, { AppSettings.updateOpacity(it) }, 0.4f..1f)
 
                 Text("Tile size", color = Pal.TextHi, fontSize = 15.sp)
                 SegmentedRow(listOf("Small", "Medium", "Large"), AppSettings.tile) { AppSettings.updateTile(it) }
@@ -799,7 +837,7 @@ class MainActivity : ComponentActivity() {
                     Column(Modifier.weight(1f)) {
                         Text("Window size", color = Pal.TextHi, fontSize = 15.sp)
                         Text(
-                            "${AppSettings.floatWDp.roundToInt()} \u00D7 ${AppSettings.floatHDp.roundToInt()}. Hold an edge of the window to change it.",
+                            "${AppSettings.floatWDp.roundToInt()} \u00D7 ${AppSettings.floatHDp.roundToInt()} \u00B7 hold an edge to resize",
                             color = Pal.TextLo, fontSize = 12.sp
                         )
                     }
@@ -809,7 +847,7 @@ class MainActivity : ComponentActivity() {
 
             SectionLabel("Playback")
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text("Call boost", color = Pal.TextHi, style = Ty.Body)
@@ -822,7 +860,7 @@ class MainActivity : ComponentActivity() {
 
             SectionLabel("Permissions")
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
@@ -833,7 +871,7 @@ class MainActivity : ComponentActivity() {
             }
 
             SectionLabel("About")
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().premiumSurface().padding(16.dp)) {
                 Text("FloatBoard", color = Pal.TextHi, fontSize = 15.sp)
                 Text("Version $version", color = Pal.TextLo, fontSize = 12.sp)
             }
@@ -842,7 +880,7 @@ class MainActivity : ComponentActivity() {
             crash?.let { report ->
                 SectionLabel("Last crash")
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                    Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(

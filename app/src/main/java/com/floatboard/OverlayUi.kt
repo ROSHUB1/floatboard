@@ -48,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -271,7 +273,7 @@ private fun SoundTile(sound: Sound, thumbDp: Int, active: Boolean, onTap: () -> 
     Column(
         Modifier.fillMaxWidth()
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(shape).background(Pal.Surface)
+            .clip(shape).background(Brush.verticalGradient(listOf(Color(0xFF1B1B20), Color(0xFF141417))))
             .border(if (active) 1.5.dp else 1.dp, borderColor, shape)
             .pointerInput(Unit) {
                 detectTapGestures(

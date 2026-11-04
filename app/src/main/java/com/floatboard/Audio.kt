@@ -58,6 +58,7 @@ object SoundPlayer {
 
     fun play(sound: Sound) {
         if (!SoundStore.fileOf(sound).exists()) return
+        SoundStore.markUsed(sound.id)
         when (AppSettings.playMode) {
             PlayMode.QUEUE ->
                 if (primary != null) { if (queue.size < MAX_QUEUE) queue.add(sound) } else start(sound)
