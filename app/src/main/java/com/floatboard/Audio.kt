@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.media.audiofx.LoudnessEnhancer
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -32,6 +33,7 @@ object SoundPlayer {
     private var primary: MediaPlayer? = null
     private var durationMs = 0
     private val handler = Handler(Looper.getMainLooper())
+    private val boosters = HashMap<MediaPlayer, LoudnessEnhancer>()
 
     /** Sounds waiting to play after the current one (queue mode). */
     val queue = mutableStateListOf<Sound>()
@@ -80,6 +82,7 @@ object SoundPlayer {
             )
             mp.setDataSource(file.absolutePath)
             mp.setOnPreparedListener { p ->
+                attachBoost(p)
                 p.start()
                 if (p === primary) {
                     durationMs = p.duration
@@ -106,6 +109,19 @@ object SoundPlayer {
             Log.e(TAG, "play failed for ${sound.name}", e)
             drop(mp)
             advance()
+        }
+    }
+
+    /** Adds about +8 dB when Call boost is on, so a speaker-to-mic setup (calls, game voice chat) hears it better. */
+    private fun attachBoost(mp: MediaPlayer) {
+        if (!AppSettings.callBoost) return
+        try {
+            val enhancer = LoudnessEnhancer(mp.audioSessionId)
+            enhancer.setTargetGain(800)
+            enhancer.setEnabled(true)
+            boosters[mp] = enhancer
+        } catch (e: Exception) {
+            Log.w(TAG, "loudness boost unavailable on this device", e)
         }
     }
 
@@ -176,6 +192,7 @@ object SoundPlayer {
 
     private fun drop(mp: MediaPlayer) {
         synchronized(active) { active.remove(mp) }
+        boosters.remove(mp)?.let { try { it.release() } catch (_: Exception) {} }
         if (mp === primary) {
             primary = null
             isBusy = false

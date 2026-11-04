@@ -81,6 +81,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -241,6 +242,35 @@ class MainActivity : ComponentActivity() {
                 val msg = if (count < 0) "Export failed" else "Exported $count sounds"
                 Toast.makeText(applicationContext, msg, Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    /** Sends the sound file to any app that accepts audio (Messenger, Discord, WhatsApp, Telegram...). */
+    private fun shareSound(sound: Sound) {
+        val file = SoundStore.fileOf(sound)
+        if (!file.exists()) {
+            Toast.makeText(this, "Sound file is missing", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val mime = when (file.extension.lowercase()) {
+            "mp3" -> "audio/mpeg"
+            "wav" -> "audio/wav"
+            "ogg", "opus" -> "audio/ogg"
+            "m4a", "aac" -> "audio/mp4"
+            "flac" -> "audio/flac"
+            else -> "audio/*"
+        }
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(send, "Share ${sound.name}"))
+        } catch (e: Exception) {
+            Log.e("MainActivity", "share failed", e)
+            Toast.makeText(this, "Couldn't share this sound", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -547,6 +577,7 @@ class MainActivity : ComponentActivity() {
                     Text(fmt(sheetSound.durationMs), color = Pal.TextLo, fontSize = 13.sp)
                     Spacer(Modifier.height(12.dp))
                     ActionRow(R.drawable.ic_play, "Play", keepColors = true) { SoundPlayer.play(sheetSound); sheetId = null }
+                    ActionRow(R.drawable.ic_export, "Share") { shareSound(sheetSound); sheetId = null }
                     ActionRow(R.drawable.ic_edit, "Rename") { renaming = sheetSound; sheetId = null }
                     ActionRow(R.drawable.ic_image, if (Entitlement.isPro) "Change image" else "Change image (Pro)") {
                         sheetId = null
@@ -715,9 +746,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "5.2.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "5.3.0"
         } catch (e: Exception) {
-            "5.2.0"
+            "5.3.0"
         }
 
         Column(
@@ -774,6 +805,19 @@ class MainActivity : ComponentActivity() {
                     }
                     OutlinedButton(onClick = { AppSettings.resetFloatSize() }) { Text("Reset") }
                 }
+            }
+
+            SectionLabel("Playback")
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.Surface).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Call boost", color = Pal.TextHi, style = Ty.Body)
+                SegmentedRow(listOf("Off", "On"), if (AppSettings.callBoost) 1 else 0) { AppSettings.updateCallBoost(it == 1) }
+                Text(
+                    "Plays sounds louder so a call or game mic picks them up. Works best on speakerphone with media volume up. Very loud clips can distort.",
+                    color = Pal.TextLo, style = Ty.Callout
+                )
             }
 
             SectionLabel("Permissions")

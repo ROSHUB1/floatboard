@@ -37,6 +37,8 @@ object AppSettings {
         private set
     var overlayFavsOnly by mutableStateOf(false)
         private set
+    var callBoost by mutableStateOf(false)
+        private set
 
     /** Thumbnail size of a tile in the floating grid (dp). */
     val tileThumbDp: Int get() = when (tile) { 0 -> 40; 1 -> 52; else -> 64 }
@@ -51,6 +53,7 @@ object AppSettings {
         floatWDp = prefs.getFloat("floatW", DEFAULT_W).coerceAtLeast(MIN_W)
         floatHDp = prefs.getFloat("floatH", DEFAULT_H).coerceAtLeast(MIN_H)
         overlayFavsOnly = prefs.getBoolean("overlayFavsOnly", false)
+        callBoost = prefs.getBoolean("callBoost", false)
     }
 
     fun updateOpacity(value: Float) {
@@ -79,5 +82,10 @@ object AppSettings {
     fun updateOverlayFavsOnly(value: Boolean) {
         overlayFavsOnly = value
         prefs.edit().putBoolean("overlayFavsOnly", value).apply()
+    }
+
+    fun updateCallBoost(value: Boolean) {
+        callBoost = value
+        prefs.edit().putBoolean("callBoost", value).apply()
     }
 }
