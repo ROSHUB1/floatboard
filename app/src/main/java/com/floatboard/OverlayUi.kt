@@ -186,7 +186,7 @@ private fun Board(
                     AppIcon(R.drawable.ic_logo, 26.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "FloatBoard", color = Pal.TextHi, fontSize = 16.sp,
+                        "VYBE", color = Pal.TextHi, fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)
                     )
                     IconBtn(

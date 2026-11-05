@@ -12,8 +12,8 @@ android {
         applicationId = "com.floatboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "6.0.0"
+        versionCode = 13
+        versionName = "7.0.0"
     }
     buildTypes {
         release { isMinifyEnabled = false }

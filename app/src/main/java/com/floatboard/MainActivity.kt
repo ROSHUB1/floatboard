@@ -347,6 +347,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun HomeScreen(goPro: () -> Unit, goSounds: () -> Unit) {
         val sounds = SoundStore.sounds
+        Box(Modifier.fillMaxSize()) {
+        MotionBackground()
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -354,7 +356,7 @@ class MainActivity : ComponentActivity() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AppIcon(R.drawable.ic_logo, 44.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.06f, 800))
                 Column(Modifier.padding(start = 12.dp)) {
-                    Text("FloatBoard", color = Pal.TextHi, style = Ty.LargeTitle)
+                    Text("VYBE", color = Pal.TextHi, style = Ty.LargeTitle)
                     Text("Your soundboard, anywhere", color = Pal.TextLo, fontSize = 13.sp)
                 }
             }
@@ -465,7 +467,7 @@ class MainActivity : ComponentActivity() {
                 ActionTile(
                     R.drawable.ic_export, "Export pack",
                     {
-                        if (sounds.any { !it.builtin }) exportPackLauncher.launch("FloatBoard-pack.zip")
+                        if (sounds.any { !it.builtin }) exportPackLauncher.launch("VYBE-pack.zip")
                         else Toast.makeText(this@MainActivity, "Add some sounds first", Toast.LENGTH_SHORT).show()
                     },
                     Modifier.weight(1f)
@@ -502,6 +504,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
         }
     }
 
@@ -687,7 +690,7 @@ class MainActivity : ComponentActivity() {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("FloatBoard Pro", color = Pal.TextHi, style = Ty.LargeTitle)
+            Text("VYBE Pro", color = Pal.TextHi, style = Ty.LargeTitle)
 
             Row(
                 Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
@@ -788,9 +791,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "6.0.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "7.0.0"
         } catch (e: Exception) {
-            "6.0.0"
+            "7.0.0"
         }
 
         Column(
@@ -801,6 +804,16 @@ class MainActivity : ComponentActivity() {
                 AppIcon(R.drawable.ic_tune, 32.dp)
                 Spacer(Modifier.width(10.dp))
                 Text("Settings", color = Pal.TextHi, style = Ty.LargeTitle)
+            }
+
+            SectionLabel("Appearance")
+            Column(
+                Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Motion background", color = Pal.TextHi, style = Ty.Body)
+                SegmentedRow(listOf("Off", "On"), if (AppSettings.motionBg) 1 else 0) { AppSettings.updateMotionBg(it == 1) }
+                Text("The moving background behind Home. Turning it off saves battery.", color = Pal.TextLo, style = Ty.Callout)
             }
 
             SectionLabel("Floating window")
@@ -872,7 +885,7 @@ class MainActivity : ComponentActivity() {
 
             SectionLabel("About")
             Column(Modifier.fillMaxWidth().premiumSurface().padding(16.dp)) {
-                Text("FloatBoard", color = Pal.TextHi, fontSize = 15.sp)
+                Text("VYBE", color = Pal.TextHi, fontSize = 15.sp)
                 Text("Version $version", color = Pal.TextLo, fontSize = 12.sp)
             }
 
@@ -890,7 +903,7 @@ class MainActivity : ComponentActivity() {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             val cm = getSystemService(ClipboardManager::class.java)
-                            cm.setPrimaryClip(ClipData.newPlainText("FloatBoard crash", report))
+                            cm.setPrimaryClip(ClipData.newPlainText("VYBE crash", report))
                             Toast.makeText(this@MainActivity, "Copied", Toast.LENGTH_SHORT).show()
                         }) { Text("Copy report") }
                         OutlinedButton(onClick = { CrashLog.clear(); crash = null }) { Text("Clear") }
@@ -959,7 +972,7 @@ private fun SplashOverlay(reveal: Animatable<Float, androidx.compose.animation.c
             )
             Spacer(Modifier.height(20.dp))
             Text(
-                "FloatBoard", color = Pal.TextHi, style = Ty.LargeTitle,
+                "VYBE", color = Pal.TextHi, style = Ty.LargeTitle,
                 modifier = Modifier.graphicsLayer { alpha = title.value; translationY = (1f - title.value) * 16f }
             )
             Spacer(Modifier.height(2.dp))

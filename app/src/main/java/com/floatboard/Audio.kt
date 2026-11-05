@@ -226,7 +226,7 @@ object VoiceRecorder {
             return
         }
         if (ContextCompat.checkSelfPermission(app, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            toast(app, "Mic permission missing. Open FloatBoard, allow mic, relaunch the board.")
+            toast(app, "Mic permission missing. Open VYBE, allow mic, relaunch the board.")
             return
         }
         val file = SoundStore.newRecordingFile()

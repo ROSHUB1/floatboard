@@ -74,7 +74,7 @@ object Entitlement {
     private fun apply(raw: String): String? {
         val pub = publicKey() ?: return "Licensing isn't set up in this build yet."
         val parts = raw.filterNot { it.isWhitespace() }.split('.')
-        if (parts.size != 3 || parts[0] != "FB1") return "That doesn't look like a FloatBoard key."
+        if (parts.size != 3 || parts[0] != "FB1") return "That doesn't look like a VYBE key."
         return try {
             val payload = decode(parts[1])
             val signature = decode(parts[2])

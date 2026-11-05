@@ -256,7 +256,7 @@ class OverlayService : Service() {
         )
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_music)
-            .setContentTitle("FloatBoard is live")
+            .setContentTitle("VYBE is live")
             .setContentText("Floating soundboard is on screen")
             .setOngoing(true)
             .addAction(0, "Stop", stopIntent)

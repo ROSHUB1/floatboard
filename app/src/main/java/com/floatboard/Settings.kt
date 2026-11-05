@@ -37,6 +37,8 @@ object AppSettings {
         private set
     var overlayFavsOnly by mutableStateOf(false)
         private set
+    var motionBg by mutableStateOf(true)
+        private set
     var callBoost by mutableStateOf(false)
         private set
 
@@ -53,6 +55,7 @@ object AppSettings {
         floatWDp = prefs.getFloat("floatW", DEFAULT_W).coerceAtLeast(MIN_W)
         floatHDp = prefs.getFloat("floatH", DEFAULT_H).coerceAtLeast(MIN_H)
         overlayFavsOnly = prefs.getBoolean("overlayFavsOnly", false)
+        motionBg = prefs.getBoolean("motionBg", true)
         callBoost = prefs.getBoolean("callBoost", false)
     }
 
@@ -87,5 +90,10 @@ object AppSettings {
     fun updateCallBoost(value: Boolean) {
         callBoost = value
         prefs.edit().putBoolean("callBoost", value).apply()
+    }
+
+    fun updateMotionBg(value: Boolean) {
+        motionBg = value
+        prefs.edit().putBoolean("motionBg", value).apply()
     }
 }
