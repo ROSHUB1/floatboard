@@ -21,6 +21,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -69,10 +73,25 @@ fun MotionBackground(modifier: Modifier = Modifier) {
 
     Box(modifier.fillMaxSize()) {
         file?.let { f ->
+            val view = remember { mutableStateOf<CropTextureView?>(null) }
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                factory = { ctx -> CropTextureView(ctx, f) { ready = true } }
+                factory = { ctx -> CropTextureView(ctx, f) { ready = true }.also { view.value = it } }
             )
+            // Pause decoding while the app isn't visible (another app in front, screen off), so it
+            // doesn't keep spending CPU/GPU for a background screen nobody's looking at.
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    when (event) {
+                        Lifecycle.Event.ON_PAUSE -> view.value?.pause()
+                        Lifecycle.Event.ON_RESUME -> view.value?.resume()
+                        else -> {}
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
         }
         // Dark scrim so content laid over the video (titles, cards) stays legible.
         AnimatedVisibility(visible = ready, enter = fadeIn(tween(400))) {
@@ -154,6 +173,14 @@ private class CropTextureView(
         val matrix = Matrix()
         matrix.setScale(sx, sy, width / 2f, height / 2f)
         setTransform(matrix)
+    }
+
+    fun pause() {
+        try { player?.takeIf { it.isPlaying }?.pause() } catch (_: Exception) {}
+    }
+
+    fun resume() {
+        try { player?.takeIf { !it.isPlaying }?.start() } catch (_: Exception) {}
     }
 
     private fun release() {

@@ -18,7 +18,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -177,14 +176,20 @@ class MainActivity : ComponentActivity() {
                             scaleY = 0.97f + 0.03f * p
                         }
                     ) {
+                        // Switched directly (no Crossfade): Crossfade briefly composes BOTH the
+                        // outgoing and incoming screen at once, and overlapping Home's motion
+                        // background with another full screen was what caused the stutter on tab
+                        // switches. A direct switch removes that overlap entirely.
                         Box(Modifier.weight(1f).fillMaxWidth().statusBarsPadding()) {
-                            Crossfade(targetState = tab, animationSpec = tween(180), label = "tab") { t ->
-                                when (t) {
-                                    Tab.Home -> HomeScreen(goPro = { tab = Tab.Pro }, goSounds = { tab = Tab.Sounds })
-                                    Tab.Sounds -> SoundsScreen(goPro = { tab = Tab.Pro })
-                                    Tab.Pro -> ProScreen()
-                                    Tab.Settings -> SettingsScreen()
-                                }
+                            when (tab) {
+                                Tab.Home -> HomeScreen(
+                                    goPro = { tab = Tab.Pro },
+                                    goSounds = { tab = Tab.Sounds },
+                                    goSettings = { tab = Tab.Settings }
+                                )
+                                Tab.Sounds -> SoundsScreen(goPro = { tab = Tab.Pro })
+                                Tab.Pro -> ProScreen()
+                                Tab.Settings -> SettingsScreen()
                             }
                         }
                         NavBar(tab) { tab = it }
@@ -345,7 +350,7 @@ class MainActivity : ComponentActivity() {
     // ───────────────────────── Home ─────────────────────────
 
     @Composable
-    private fun HomeScreen(goPro: () -> Unit, goSounds: () -> Unit) {
+    private fun HomeScreen(goPro: () -> Unit, goSounds: () -> Unit, goSettings: () -> Unit) {
         val sounds = SoundStore.sounds
         Box(Modifier.fillMaxSize()) {
         MotionBackground()
@@ -359,6 +364,26 @@ class MainActivity : ComponentActivity() {
                     Text("VYBE", color = Pal.TextHi, style = Ty.LargeTitle)
                     Text("Your soundboard, anywhere", color = Pal.TextLo, fontSize = 13.sp)
                 }
+            }
+
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { SectionLabel("Quick Access") }
+                Text(
+                    "See all", color = Pal.Accent, style = Ty.Callout,
+                    modifier = Modifier.clickable { goSounds() }.padding(4.dp)
+                )
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickAccessTile(
+                    R.drawable.ic_add, "Add\nSounds",
+                    { pickAudio.launch(arrayOf("audio/*")) }, Modifier.weight(1f)
+                )
+                QuickAccessTile(R.drawable.ic_folder, "Library", goSounds, Modifier.weight(1f))
+                QuickAccessTile(R.drawable.ic_settings, "Settings", goSettings, Modifier.weight(1f))
+                QuickAccessTile(
+                    R.drawable.ic_star, "Pro", goPro, Modifier.weight(1f),
+                    tint = Color(0xFFE8B64A), container = Color(0x29E8B64A)
+                )
             }
 
             val running = OverlayService.running
@@ -791,9 +816,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsScreen() {
         val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "7.0.0"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "7.2.0"
         } catch (e: Exception) {
-            "7.0.0"
+            "7.2.0"
         }
 
         Column(

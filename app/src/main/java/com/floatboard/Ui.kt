@@ -234,6 +234,37 @@ fun ActionTile(
     }
 }
 
+/**
+ * Square tile for the Home "Quick Access" row: an icon chip centered above a label, in a raised
+ * card. Matches the reference layout (icon on top, label below, four across).
+ */
+@Composable
+fun QuickAccessTile(
+    @DrawableRes res: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = Pal.Accent,
+    container: Color = Pal.AccentSoft
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        modifier.bouncyClick(onClick)
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0xFF1C1C22), Color(0xFF151518))))
+            .border(1.dp, Brush.verticalGradient(listOf(Color(0x24FFFFFF), Color(0x0AFFFFFF))), shape)
+            .padding(vertical = 14.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        IconChip(res, tint = tint, container = container, size = 38.dp)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            label, color = Pal.TextHi, style = Ty.Caption.copy(fontWeight = FontWeight.Medium),
+            textAlign = TextAlign.Center, maxLines = 2, lineHeight = 14.sp
+        )
+    }
+}
+
 @Composable
 fun ActionRow(
     @DrawableRes res: Int,
