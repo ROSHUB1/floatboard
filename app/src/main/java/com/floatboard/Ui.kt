@@ -72,15 +72,18 @@ import androidx.compose.ui.unit.sp
 
 /** One accent color (amber), reserved for "this is what's playing". Everything else is flat dark. */
 object Pal {
-    val Bg = Color(0xFF0C0C0E)
-    val Surface = Color(0xFF151518)
-    val SurfaceHi = Color(0xFF1E1E22)
-    val Outline = Color(0xFF2A2A30)
-    val TextHi = Color(0xFFF2F2F4)
-    val TextLo = Color(0xFF9A9AA4)
-    val Accent = Color(0xFF5BB8CA)    // one muted teal, used for "active / selected / primary" only
-    val AccentSoft = Color(0x295BB8CA)   // accent at ~16%, for icon chips and selected backgrounds
-    val Accent2 = Color(0xFF9ED6E1)   // lighter tint of the same accent (leading edge of the playback sweep)
+    // One cohesive dark system. Purple/blue stay only in the logo and mascot art, not scattered
+    // through the UI, so the single accent below is what communicates "interactive" everywhere.
+    val Bg = Color(0xFF111214)
+    val Surface = Color(0xFF1A1C1F)
+    val SurfaceHi = Color(0xFF22252A)
+    val Elevated = Color(0xFF292C31)
+    val Outline = Color(0xFF303338)
+    val TextHi = Color(0xFFF2F2F0)
+    val TextLo = Color(0xFF92969D)
+    val Accent = Color(0xFF75B9C2)
+    val AccentSoft = Color(0x2975B9C2)   // accent at ~16%, for icon chips and selected backgrounds
+    val Accent2 = Color(0xFFA7D7DD)      // lighter tint of the same accent (leading edge of the playback sweep)
     val Danger = Color(0xFFE5584E)
 }
 
@@ -194,10 +197,12 @@ fun SoundThumb(sound: Sound?, size: Dp, corner: Dp = 10.dp, progress: (() -> Flo
 }
 
 /** Card surface with a soft top-lit gradient and a hairline highlight, so cards read as raised, not flat. */
-fun Modifier.premiumSurface(shape: Shape = RoundedCornerShape(16.dp)): Modifier =
-    this.clip(shape)
-        .background(Brush.verticalGradient(listOf(Color(0xFF1B1B20), Color(0xFF141417))))
-        .border(1.dp, Brush.verticalGradient(listOf(Color(0x26FFFFFF), Color(0x0DFFFFFF))), shape)
+fun Modifier.premiumSurface(shape: Shape = RoundedCornerShape(14.dp)): Modifier =
+    this.clip(shape).background(Pal.Surface).border(1.dp, Pal.Outline.copy(alpha = 0.6f), shape)
+
+/** A flat elevated surface one step brighter than [premiumSurface], for the one hero element on a screen. */
+fun Modifier.elevatedSurface(shape: Shape = RoundedCornerShape(16.dp)): Modifier =
+    this.clip(shape).background(Pal.Elevated)
 
 /** Rounded square with an accent-tinted icon inside: the one icon treatment for flat (single-colour) icons. */
 @Composable
@@ -264,6 +269,67 @@ fun QuickAccessTile(
             label, color = Pal.TextHi, style = Ty.Caption.copy(fontWeight = FontWeight.Medium),
             textAlign = TextAlign.Center, maxLines = 2, lineHeight = 14.sp
         )
+    }
+}
+
+@Composable
+fun ProgressTrack(fraction: Float, modifier: Modifier = Modifier, height: Dp = 4.dp) {
+    Box(modifier.fillMaxWidth().height(height).clip(CircleShape).background(Pal.Outline)) {
+        Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().clip(CircleShape).background(Pal.Accent))
+    }
+}
+
+/** One compact, low-emphasis row: icon chip, label, tap target. Several of these grouped together
+ * (with a hairline divider between) read as one organized list instead of separate cards. */
+@Composable
+fun CompactRow(
+    @DrawableRes res: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconChip(res, size = 32.dp)
+        Spacer(Modifier.width(12.dp))
+        Text(label, color = Pal.TextHi, style = Ty.Body, modifier = Modifier.weight(1f))
+    }
+}
+
+/**
+ * A full-width pill button for the one or two most important actions on a screen, visually distinct
+ * from the smaller [QuickAccessTile] grid: filled when primary, outlined when secondary, and a danger
+ * fill while recording.
+ */
+@Composable
+fun PrimaryActionButton(
+    @DrawableRes res: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    filled: Boolean = true,
+    danger: Boolean = false
+) {
+    val shape = RoundedCornerShape(14.dp)
+    val bg = when {
+        danger -> Pal.Danger
+        filled -> Pal.Accent
+        else -> Color.Transparent
+    }
+    val fg = if (filled || danger) Pal.Bg else Pal.TextHi
+    Row(
+        modifier.bouncyClick(onClick).clip(shape).background(bg)
+            .then(if (!filled && !danger) Modifier.border(1.dp, Pal.Outline, shape) else Modifier)
+            .padding(vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Spacer(Modifier.weight(1f))
+        AppIcon(res, 18.dp, fg)
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = fg, style = Ty.Body.copy(fontWeight = FontWeight.SemiBold))
+        Spacer(Modifier.weight(1f))
     }
 }
 

@@ -18,6 +18,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -69,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -355,177 +358,215 @@ class MainActivity : ComponentActivity() {
         Box(Modifier.fillMaxSize()) {
         MotionBackground()
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // ── Header: tight, no wasted vertical space ──
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AppIcon(R.drawable.ic_logo, 44.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.06f, 800))
-                Column(Modifier.padding(start = 12.dp)) {
-                    Text("VYBE", color = Pal.TextHi, style = Ty.LargeTitle)
-                    Text("Your soundboard, anywhere", color = Pal.TextLo, fontSize = 13.sp)
+                AppIcon(R.drawable.ic_logo, 34.dp, modifier = Modifier.pulse(SoundPlayer.isPlaying, 0.05f, 800))
+                Column(Modifier.padding(start = 10.dp)) {
+                    Text("VYBE", color = Pal.TextHi, style = Ty.Title)
+                    Text("Your soundboard, anywhere", color = Pal.TextLo, style = Ty.Caption)
                 }
             }
 
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { SectionLabel("Quick Access") }
-                Text(
-                    "See all", color = Pal.Accent, style = Ty.Callout,
-                    modifier = Modifier.clickable { goSounds() }.padding(4.dp)
-                )
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickAccessTile(
-                    R.drawable.ic_add, "Add\nSounds",
-                    { pickAudio.launch(arrayOf("audio/*")) }, Modifier.weight(1f)
-                )
-                QuickAccessTile(R.drawable.ic_folder, "Library", goSounds, Modifier.weight(1f))
-                QuickAccessTile(R.drawable.ic_settings, "Settings", goSettings, Modifier.weight(1f))
-                QuickAccessTile(
-                    R.drawable.ic_star, "Pro", goPro, Modifier.weight(1f),
-                    tint = Color(0xFFE8B64A), container = Color(0x29E8B64A)
-                )
+            // ── Quick Access: compact shortcuts, not full-size actions ──
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { SectionLabel("Quick Access") }
+                    Text(
+                        "See all", color = Pal.Accent, style = Ty.Callout,
+                        modifier = Modifier.clickable { goSounds() }.padding(4.dp)
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuickAccessTile(R.drawable.ic_add, "Add", { pickAudio.launch(arrayOf("audio/*")) }, Modifier.weight(1f))
+                    QuickAccessTile(R.drawable.ic_folder, "Library", goSounds, Modifier.weight(1f))
+                    QuickAccessTile(R.drawable.ic_settings, "Settings", goSettings, Modifier.weight(1f))
+                    QuickAccessTile(
+                        R.drawable.ic_star, "Pro", goPro, Modifier.weight(1f),
+                        tint = Color(0xFFE8B64A), container = Color(0x29E8B64A)
+                    )
+                }
             }
 
+            // ── Floating board: the primary feature, art-directed rather than text-beside-mascot ──
             val running = OverlayService.running
-            val heroShape = RoundedCornerShape(16.dp)
+            val heroShape = RoundedCornerShape(20.dp)
             val heroLabel = when {
                 !overlayGranted -> "Allow"
                 running -> "Close"
                 else -> "Launch"
             }
             val onHero = { if (running) stopBoard() else startBoard() }
-            Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp).premiumSurface(heroShape)
-                    .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (running) Pal.Accent else Color(0xFF6B6B75)))
-                        Spacer(Modifier.width(8.dp))
+            Box(Modifier.fillMaxWidth().elevatedSurface(heroShape)) {
+                // The mascot bleeds past the content padding on the bottom-right, clipped by the
+                // card's own rounded corner, so it reads as part of the composition instead of a
+                // sticker placed beside the text.
+                Mascot(
+                    152.dp,
+                    Modifier.align(Alignment.BottomEnd).offset(x = 28.dp, y = 28.dp)
+                        .pulse(SoundPlayer.isPlaying, 0.04f, 600)
+                )
+                Box(
+                    Modifier.fillMaxWidth().background(
+                        Brush.horizontalGradient(listOf(Pal.Elevated, Pal.Elevated, Pal.Elevated.copy(alpha = 0f)))
+                    )
+                ) {
+                    Column(Modifier.fillMaxWidth(0.72f).padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(7.dp).clip(CircleShape).background(if (running) Pal.Accent else Pal.Outline))
+                            Spacer(Modifier.width(7.dp))
+                            Text(
+                                when {
+                                    !overlayGranted -> "Permission needed"
+                                    running -> "Board is live"
+                                    else -> "Floating board"
+                                },
+                                color = Pal.TextHi, style = Ty.Headline
+                            )
+                        }
+                        Spacer(Modifier.height(3.dp))
                         Text(
                             when {
-                                !overlayGranted -> "Permission needed"
-                                running -> "Board is live"
-                                else -> "Floating board"
+                                !overlayGranted -> "Allow display over other apps"
+                                running -> "Floating over your apps"
+                                else -> "Tap to open your soundboard"
                             },
-                            color = Pal.TextHi, style = Ty.Headline
+                            color = Pal.TextLo, style = Ty.Callout
                         )
+                        Spacer(Modifier.height(14.dp))
+                        if (running) OutlinedButton(onClick = onHero) { Text(heroLabel) }
+                        else Button(onClick = onHero) { Text(heroLabel) }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        when {
-                            !overlayGranted -> "Allow display over other apps"
-                            running -> "Floating over your apps"
-                            else -> "Tap to open your soundboard"
-                        },
-                        color = Pal.TextLo, style = Ty.Callout
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    if (running) OutlinedButton(onClick = onHero) { Text(heroLabel) }
-                    else Button(onClick = onHero) { Text(heroLabel) }
                 }
-                Mascot(120.dp, Modifier.pulse(SoundPlayer.isPlaying, 0.04f, 600))
             }
 
+            // ── Recently used: a proper empty state instead of a stray line of text ──
             val recentSounds = SoundStore.recent.mapNotNull { id -> sounds.firstOrNull { it.id == id } }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { SectionLabel("Recently used") }
-                if (recentSounds.isNotEmpty()) {
-                    Text(
-                        "See all", color = Pal.Accent, style = Ty.Callout,
-                        modifier = Modifier.clickable { goSounds() }.padding(4.dp)
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { SectionLabel("Recently used") }
+                    if (recentSounds.isNotEmpty()) {
+                        Text(
+                            "See all", color = Pal.Accent, style = Ty.Callout,
+                            modifier = Modifier.clickable { goSounds() }.padding(4.dp)
+                        )
+                    }
                 }
-            }
-            if (recentSounds.isEmpty()) {
-                Text(
-                    "Sounds you play show up here for quick replay.",
-                    color = Pal.TextLo, style = Ty.Callout, modifier = Modifier.padding(start = 4.dp)
-                )
-            } else {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(horizontal = 2.dp)
-                ) {
-                    items(recentSounds, key = { it.id }) { s ->
-                        val active = SoundPlayer.isBusy && SoundPlayer.nowPlaying?.id == s.id
-                        Column(
-                            Modifier.width(72.dp).bouncyClick { SoundPlayer.play(s) },
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            SoundThumb(s, 64.dp, 16.dp, progress = if (active) ({ SoundPlayer.progress }) else null)
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                s.name, color = if (active) Pal.Accent else Pal.TextHi, style = Ty.Caption,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
+                if (recentSounds.isEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth().premiumSurface().padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MascotStill(36.dp, alpha = 0.55f)
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "Sounds you play show up here for quick replay.",
+                            color = Pal.TextLo, style = Ty.Callout
+                        )
+                    }
+                } else {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) {
+                        items(recentSounds, key = { it.id }) { s ->
+                            val active = SoundPlayer.isBusy && SoundPlayer.nowPlaying?.id == s.id
+                            Column(
+                                Modifier.width(72.dp).bouncyClick { SoundPlayer.play(s) },
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                SoundThumb(s, 64.dp, 16.dp, progress = if (active) ({ SoundPlayer.progress }) else null)
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    s.name, color = if (active) Pal.Accent else Pal.TextHi, style = Ty.Caption,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            SectionLabel("Quick actions")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionTile(
-                    R.drawable.ic_add, "Add sounds",
-                    { pickAudio.launch(arrayOf("audio/*")) }, Modifier.weight(1f)
-                )
-                ActionTile(
-                    if (VoiceRecorder.isRecording) R.drawable.ic_stop_flat else R.drawable.ic_mic,
-                    if (VoiceRecorder.isRecording) "Stop" else "Record",
-                    { toggleRecord() }, Modifier.weight(1f), highlight = VoiceRecorder.isRecording
-                )
-            }
-
-            SectionLabel("Library")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionTile(
-                    R.drawable.ic_import, "Import pack",
-                    {
-                        importPackLauncher.launch(
-                            arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
-                        )
-                    },
-                    Modifier.weight(1f)
-                )
-                ActionTile(
-                    R.drawable.ic_export, "Export pack",
-                    {
-                        if (sounds.any { !it.builtin }) exportPackLauncher.launch("VYBE-pack.zip")
-                        else Toast.makeText(this@MainActivity, "Add some sounds first", Toast.LENGTH_SHORT).show()
-                    },
-                    Modifier.weight(1f)
-                )
-            }
-            packStatus?.let { Text(it, color = Pal.Accent, fontSize = 13.sp) }
-
-            if (!Entitlement.isPro) {
-                Row(
-                    Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Free plan", color = Pal.TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "${Entitlement.usedSlots()} / ${Entitlement.FREE_SOUND_LIMIT} sounds",
-                            color = Pal.TextLo, fontSize = 12.sp
-                        )
-                    }
-                    OutlinedButton(onClick = goPro) { Text("Go Pro") }
+            // ── Quick actions: the two primary actions, a different shape than the Quick Access grid ──
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel("Quick actions")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PrimaryActionButton(
+                        R.drawable.ic_add, "Add sounds",
+                        { pickAudio.launch(arrayOf("audio/*")) }, Modifier.weight(1f)
+                    )
+                    PrimaryActionButton(
+                        if (VoiceRecorder.isRecording) R.drawable.ic_stop_flat else R.drawable.ic_mic,
+                        if (VoiceRecorder.isRecording) "Stop" else "Record",
+                        { toggleRecord() }, Modifier.weight(1f),
+                        filled = false, danger = VoiceRecorder.isRecording
+                    )
                 }
             }
 
-            Row(
-                Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconChip(R.drawable.ic_expand)
-                Column(Modifier.padding(start = 14.dp)) {
-                    Text("Resize the floating window", color = Pal.TextHi, fontSize = 15.sp)
+            // ── Library management: compact, organized, clearly secondary ──
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel("Library management")
+                Column(Modifier.fillMaxWidth().premiumSurface()) {
+                    CompactRow(R.drawable.ic_import, "Import pack", {
+                        importPackLauncher.launch(
+                            arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
+                        )
+                    })
+                    HorizontalDivider(color = Pal.Outline, thickness = 0.5.dp, modifier = Modifier.padding(start = 58.dp))
+                    CompactRow(R.drawable.ic_export, "Export pack", {
+                        if (sounds.any { !it.builtin }) exportPackLauncher.launch("VYBE-pack.zip")
+                        else Toast.makeText(this@MainActivity, "Add some sounds first", Toast.LENGTH_SHORT).show()
+                    })
+                }
+                packStatus?.let { Text(it, color = Pal.Accent, style = Ty.Callout) }
+            }
+
+            // ── Subscription status: visible, not dominant, with a progress indicator ──
+            if (!Entitlement.isPro) {
+                Column(
+                    Modifier.fillMaxWidth().premiumSurface().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Free plan", color = Pal.TextHi, style = Ty.Body.copy(fontWeight = FontWeight.SemiBold))
+                            Text(
+                                "${Entitlement.usedSlots()} / ${Entitlement.FREE_SOUND_LIMIT} sounds",
+                                color = Pal.TextLo, style = Ty.Caption
+                            )
+                        }
+                        OutlinedButton(onClick = goPro) { Text("Go Pro") }
+                    }
+                    ProgressTrack(Entitlement.usedSlots().toFloat() / Entitlement.FREE_SOUND_LIMIT)
+                }
+            }
+
+            // ── Floating window tip: collapsed by default so it doesn't eat vertical space ──
+            var tipOpen by remember { mutableStateOf(false) }
+            val chevronRotation by animateFloatAsState(if (tipOpen) 180f else 0f, tween(200), label = "tipChevron")
+            Column(Modifier.fillMaxWidth().premiumSurface()) {
+                Row(
+                    Modifier.fillMaxWidth().clickable { tipOpen = !tipOpen }.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconChip(R.drawable.ic_expand, size = 32.dp)
+                    Text(
+                        "Resize the floating window", color = Pal.TextHi, style = Ty.Body,
+                        modifier = Modifier.weight(1f).padding(start = 12.dp)
+                    )
+                    AppIcon(
+                        R.drawable.ic_expand, 16.dp, Pal.TextLo,
+                        modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
+                    )
+                }
+                AnimatedVisibility(visible = tipOpen) {
                     Text(
                         "Hold any edge of the window, then drag. Hold a corner to resize both ways.",
-                        color = Pal.TextLo, fontSize = 12.sp
+                        color = Pal.TextLo, style = Ty.Callout,
+                        modifier = Modifier.padding(start = 58.dp, end = 14.dp, bottom = 14.dp)
                     )
                 }
             }

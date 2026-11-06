@@ -64,6 +64,27 @@ object MascotFrames {
     }
 }
 
+/**
+ * One static mascot frame with no animation loop running — for small, incidental spots (an empty
+ * state) where the full looping [Mascot] would be overkill and would add a second animation running
+ * at the same time as the hero one.
+ */
+@Composable
+fun MascotStill(size: Dp, alpha: Float = 1f, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val still = remember { MascotFrames.still(context) }
+    Canvas(modifier.size(size)) {
+        still?.let {
+            drawImage(
+                it,
+                dstSize = IntSize(this.size.width.roundToInt(), this.size.height.roundToInt()),
+                alpha = alpha,
+                filterQuality = FilterQuality.Medium
+            )
+        }
+    }
+}
+
 @Composable
 fun Mascot(size: Dp, modifier: Modifier = Modifier) {
     val context = LocalContext.current
